@@ -14,6 +14,10 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiProtectedAiHealSelectorRouteImport } from './routes/api/protected/ai-heal-selector'
+import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/protected/ai-generate-test'
+import { Route as ApiProtectedAiGenerateApiSuiteRouteImport } from './routes/api/protected/ai-generate-api-suite'
+import { Route as ApiProtectedAiAnalyzeFailureRouteImport } from './routes/api/protected/ai-analyze-failure'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -40,6 +44,30 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProtectedAiHealSelectorRoute =
+  ApiProtectedAiHealSelectorRouteImport.update({
+    id: '/api/protected/ai-heal-selector',
+    path: '/api/protected/ai-heal-selector',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiProtectedAiGenerateTestRoute =
+  ApiProtectedAiGenerateTestRouteImport.update({
+    id: '/api/protected/ai-generate-test',
+    path: '/api/protected/ai-generate-test',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiProtectedAiGenerateApiSuiteRoute =
+  ApiProtectedAiGenerateApiSuiteRouteImport.update({
+    id: '/api/protected/ai-generate-api-suite',
+    path: '/api/protected/ai-generate-api-suite',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiProtectedAiAnalyzeFailureRoute =
+  ApiProtectedAiAnalyzeFailureRouteImport.update({
+    id: '/api/protected/ai-analyze-failure',
+    path: '/api/protected/ai-analyze-failure',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +75,10 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
+  '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
+  '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
+  '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +86,10 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
+  '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
+  '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
+  '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,12 +98,34 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
+  '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
+  '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
+  '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/forgot-password' | '/login' | '/reset-password' | '/signup'
+  fullPaths:
+    | '/'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
+    | '/signup'
+    | '/api/protected/ai-analyze-failure'
+    | '/api/protected/ai-generate-api-suite'
+    | '/api/protected/ai-generate-test'
+    | '/api/protected/ai-heal-selector'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/forgot-password' | '/login' | '/reset-password' | '/signup'
+  to:
+    | '/'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
+    | '/signup'
+    | '/api/protected/ai-analyze-failure'
+    | '/api/protected/ai-generate-api-suite'
+    | '/api/protected/ai-generate-test'
+    | '/api/protected/ai-heal-selector'
   id:
     | '__root__'
     | '/'
@@ -75,6 +133,10 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/api/protected/ai-analyze-failure'
+    | '/api/protected/ai-generate-api-suite'
+    | '/api/protected/ai-generate-test'
+    | '/api/protected/ai-heal-selector'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -83,6 +145,10 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  ApiProtectedAiAnalyzeFailureRoute: typeof ApiProtectedAiAnalyzeFailureRoute
+  ApiProtectedAiGenerateApiSuiteRoute: typeof ApiProtectedAiGenerateApiSuiteRoute
+  ApiProtectedAiGenerateTestRoute: typeof ApiProtectedAiGenerateTestRoute
+  ApiProtectedAiHealSelectorRoute: typeof ApiProtectedAiHealSelectorRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -122,6 +188,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/ai-heal-selector': {
+      id: '/api/protected/ai-heal-selector'
+      path: '/api/protected/ai-heal-selector'
+      fullPath: '/api/protected/ai-heal-selector'
+      preLoaderRoute: typeof ApiProtectedAiHealSelectorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/ai-generate-test': {
+      id: '/api/protected/ai-generate-test'
+      path: '/api/protected/ai-generate-test'
+      fullPath: '/api/protected/ai-generate-test'
+      preLoaderRoute: typeof ApiProtectedAiGenerateTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/ai-generate-api-suite': {
+      id: '/api/protected/ai-generate-api-suite'
+      path: '/api/protected/ai-generate-api-suite'
+      fullPath: '/api/protected/ai-generate-api-suite'
+      preLoaderRoute: typeof ApiProtectedAiGenerateApiSuiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/ai-analyze-failure': {
+      id: '/api/protected/ai-analyze-failure'
+      path: '/api/protected/ai-analyze-failure'
+      fullPath: '/api/protected/ai-analyze-failure'
+      preLoaderRoute: typeof ApiProtectedAiAnalyzeFailureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -131,7 +225,21 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  ApiProtectedAiAnalyzeFailureRoute: ApiProtectedAiAnalyzeFailureRoute,
+  ApiProtectedAiGenerateApiSuiteRoute: ApiProtectedAiGenerateApiSuiteRoute,
+  ApiProtectedAiGenerateTestRoute: ApiProtectedAiGenerateTestRoute,
+  ApiProtectedAiHealSelectorRoute: ApiProtectedAiHealSelectorRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
