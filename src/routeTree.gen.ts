@@ -15,13 +15,17 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedSchedulesRouteImport } from './routes/_authenticated/schedules'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedCodegenRouteImport } from './routes/_authenticated/codegen'
 import { Route as AuthenticatedApiTesterRouteImport } from './routes/_authenticated/api-tester'
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
 import { Route as ApiProtectedAiHealSelectorRouteImport } from './routes/api/protected/ai-heal-selector'
 import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/protected/ai-generate-test'
 import { Route as ApiProtectedAiGenerateApiSuiteRouteImport } from './routes/api/protected/ai-generate-api-suite'
+import { Route as ApiProtectedAiCodegenRouteImport } from './routes/api/protected/ai-codegen'
 import { Route as ApiProtectedAiAnalyzeFailureRouteImport } from './routes/api/protected/ai-analyze-failure'
+import { Route as AuthenticatedTestsTestIdRouteImport } from './routes/_authenticated/tests.$testId'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -52,9 +56,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSchedulesRoute = AuthenticatedSchedulesRouteImport.update({
+  id: '/schedules',
+  path: '/schedules',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCodegenRoute = AuthenticatedCodegenRouteImport.update({
+  id: '/codegen',
+  path: '/codegen',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedApiTesterRoute = AuthenticatedApiTesterRouteImport.update({
@@ -85,11 +99,22 @@ const ApiProtectedAiGenerateApiSuiteRoute =
     path: '/api/protected/ai-generate-api-suite',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedAiCodegenRoute = ApiProtectedAiCodegenRouteImport.update({
+  id: '/api/protected/ai-codegen',
+  path: '/api/protected/ai-codegen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProtectedAiAnalyzeFailureRoute =
   ApiProtectedAiAnalyzeFailureRouteImport.update({
     id: '/api/protected/ai-analyze-failure',
     path: '/api/protected/ai-analyze-failure',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedTestsTestIdRoute =
+  AuthenticatedTestsTestIdRouteImport.update({
+    id: '/tests/$testId',
+    path: '/tests/$testId',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -99,8 +124,12 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/api-tester': typeof AuthenticatedApiTesterRoute
+  '/codegen': typeof AuthenticatedCodegenRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/schedules': typeof AuthenticatedSchedulesRoute
+  '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
+  '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
@@ -113,8 +142,12 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/api-tester': typeof AuthenticatedApiTesterRoute
+  '/codegen': typeof AuthenticatedCodegenRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/schedules': typeof AuthenticatedSchedulesRoute
+  '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
+  '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
@@ -129,8 +162,12 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_authenticated/api-tester': typeof AuthenticatedApiTesterRoute
+  '/_authenticated/codegen': typeof AuthenticatedCodegenRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/schedules': typeof AuthenticatedSchedulesRoute
+  '/_authenticated/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
+  '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
@@ -145,8 +182,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/api-tester'
+    | '/codegen'
     | '/dashboard'
+    | '/schedules'
+    | '/tests/$testId'
     | '/api/protected/ai-analyze-failure'
+    | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
@@ -159,8 +200,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/api-tester'
+    | '/codegen'
     | '/dashboard'
+    | '/schedules'
+    | '/tests/$testId'
     | '/api/protected/ai-analyze-failure'
+    | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
@@ -174,8 +219,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/_authenticated/api-tester'
+    | '/_authenticated/codegen'
     | '/_authenticated/dashboard'
+    | '/_authenticated/schedules'
+    | '/_authenticated/tests/$testId'
     | '/api/protected/ai-analyze-failure'
+    | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
@@ -190,6 +239,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   ApiProtectedAiAnalyzeFailureRoute: typeof ApiProtectedAiAnalyzeFailureRoute
+  ApiProtectedAiCodegenRoute: typeof ApiProtectedAiCodegenRoute
   ApiProtectedAiGenerateApiSuiteRoute: typeof ApiProtectedAiGenerateApiSuiteRoute
   ApiProtectedAiGenerateTestRoute: typeof ApiProtectedAiGenerateTestRoute
   ApiProtectedAiHealSelectorRoute: typeof ApiProtectedAiHealSelectorRoute
@@ -240,11 +290,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/schedules': {
+      id: '/_authenticated/schedules'
+      path: '/schedules'
+      fullPath: '/schedules'
+      preLoaderRoute: typeof AuthenticatedSchedulesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/codegen': {
+      id: '/_authenticated/codegen'
+      path: '/codegen'
+      fullPath: '/codegen'
+      preLoaderRoute: typeof AuthenticatedCodegenRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/api-tester': {
@@ -282,6 +346,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedAiGenerateApiSuiteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/ai-codegen': {
+      id: '/api/protected/ai-codegen'
+      path: '/api/protected/ai-codegen'
+      fullPath: '/api/protected/ai-codegen'
+      preLoaderRoute: typeof ApiProtectedAiCodegenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/ai-analyze-failure': {
       id: '/api/protected/ai-analyze-failure'
       path: '/api/protected/ai-analyze-failure'
@@ -289,17 +360,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedAiAnalyzeFailureRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/tests/$testId': {
+      id: '/_authenticated/tests/$testId'
+      path: '/tests/$testId'
+      fullPath: '/tests/$testId'
+      preLoaderRoute: typeof AuthenticatedTestsTestIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedRouteChildren {
   AuthenticatedApiTesterRoute: typeof AuthenticatedApiTesterRoute
+  AuthenticatedCodegenRoute: typeof AuthenticatedCodegenRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedSchedulesRoute: typeof AuthenticatedSchedulesRoute
+  AuthenticatedTestsTestIdRoute: typeof AuthenticatedTestsTestIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedApiTesterRoute: AuthenticatedApiTesterRoute,
+  AuthenticatedCodegenRoute: AuthenticatedCodegenRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedSchedulesRoute: AuthenticatedSchedulesRoute,
+  AuthenticatedTestsTestIdRoute: AuthenticatedTestsTestIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -314,6 +398,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   ApiProtectedAiAnalyzeFailureRoute: ApiProtectedAiAnalyzeFailureRoute,
+  ApiProtectedAiCodegenRoute: ApiProtectedAiCodegenRoute,
   ApiProtectedAiGenerateApiSuiteRoute: ApiProtectedAiGenerateApiSuiteRoute,
   ApiProtectedAiGenerateTestRoute: ApiProtectedAiGenerateTestRoute,
   ApiProtectedAiHealSelectorRoute: ApiProtectedAiHealSelectorRoute,

@@ -177,7 +177,7 @@ function TestDetail() {
                   <div className="mt-4 border-t border-border pt-4">
                     <div className="text-xs text-primary-glow mb-2 flex items-center gap-1"><Sparkles className="h-3 w-3" /> AI ROOT-CAUSE ANALYSIS</div>
                     {analysisBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                      <div className="prose prose-sm prose-invert max-w-none text-sm"><ReactMarkdown>{analysis.text}</ReactMarkdown></div>
+                      <div className="prose prose-sm prose-invert max-w-none text-sm"><ReactMarkdown>{analysis?.text || ""}</ReactMarkdown></div>
                     )}
                   </div>
                 )}
