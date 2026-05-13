@@ -214,7 +214,7 @@ function Dashboard() {
                             <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Analyzing…</div>
                           ) : (
                             <div className="prose prose-sm prose-invert max-w-none text-sm">
-                              <ReactMarkdown>{analysis.text}</ReactMarkdown>
+                              <ReactMarkdown>{analysis?.text || ""}</ReactMarkdown>
                             </div>
                           )}
                           {!analysisBusy && (
