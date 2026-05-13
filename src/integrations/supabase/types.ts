@@ -14,7 +14,154 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          base_url: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      runs: {
+        Row: {
+          ai_analysis: string | null
+          created_at: string
+          duration_ms: number | null
+          finished_at: string | null
+          id: string
+          owner_id: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["run_status"]
+          steps: Json
+          summary: Json
+          test_id: string
+        }
+        Insert: {
+          ai_analysis?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          finished_at?: string | null
+          id?: string
+          owner_id: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["run_status"]
+          steps?: Json
+          summary?: Json
+          test_id: string
+        }
+        Update: {
+          ai_analysis?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          finished_at?: string | null
+          id?: string
+          owner_id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["run_status"]
+          steps?: Json
+          summary?: Json
+          test_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "runs_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tests: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          owner_id: string
+          project_id: string
+          spec: Json
+          type: Database["public"]["Enums"]["test_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          project_id: string
+          spec?: Json
+          type: Database["public"]["Enums"]["test_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          project_id?: string
+          spec?: Json
+          type?: Database["public"]["Enums"]["test_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +170,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      run_status: "queued" | "running" | "passed" | "failed" | "error"
+      test_type: "browser" | "api"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +298,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      run_status: ["queued", "running", "passed", "failed", "error"],
+      test_type: ["browser", "api"],
+    },
   },
 } as const
