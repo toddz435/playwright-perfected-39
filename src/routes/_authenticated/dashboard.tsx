@@ -14,7 +14,7 @@ import { Plus, Sparkles, Play, Loader2, FolderKanban, Activity, CheckCircle2, XC
 import ReactMarkdown from "react-markdown";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — Vector QA" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — Testrify" }] }),
   component: Dashboard,
 });
 
