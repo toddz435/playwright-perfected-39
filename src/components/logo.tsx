@@ -8,7 +8,7 @@ export function Logo({ to = "/" }: { to?: string }) {
           <path d="M3 12l4 4L21 4" />
         </svg>
       </div>
-      <span className="font-semibold text-lg tracking-tight">Vector<span className="text-gradient">QA</span></span>
+      <span className="font-semibold text-lg tracking-tight">Test<span className="text-gradient">rify</span></span>
     </Link>
   );
 }

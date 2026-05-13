@@ -6,8 +6,10 @@ import { ArrowRight, Sparkles, Zap, Shield, Workflow, Brain, RotateCcw, FlaskCon
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Vector QA — AI-Native Test Automation Built on Playwright" },
+      { title: "Testrify — AI-Native Test Automation Built on Playwright" },
       { name: "description", content: "Resilient browser & API testing powered by AI. Resume from any failed step. No flaky selectors. So simple grandma can test your APIs." },
+      { property: "og:title", content: "Testrify — AI-Native Test Automation" },
+      { property: "og:description", content: "Resilient browser & API testing powered by AI. Resume from any failed step." },
     ],
   }),
   component: Landing,
@@ -58,7 +60,7 @@ function Landing() {
           QA that <span className="text-gradient">doesn't suck</span>.
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-          Vector QA fixes everything that's annoying about Playwright. Resilient selectors, resumable runs, AI-authored tests, API testing your grandma could do.
+          Testrify fixes everything that's annoying about Playwright. Resilient selectors, resumable runs, AI-authored tests, API testing your grandma could do.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg" className="bg-gradient-primary border-0 shadow-glow text-base h-12 px-6">
@@ -78,7 +80,7 @@ function Landing() {
                 <div className="h-2.5 w-2.5 rounded-full bg-warning/60" />
                 <div className="h-2.5 w-2.5 rounded-full bg-success/60" />
               </div>
-              <div className="text-xs text-muted-foreground font-mono ml-3">vectorqa.app/runs/checkout-flow</div>
+              <div className="text-xs text-muted-foreground font-mono ml-3">testrify.app/runs/checkout-flow</div>
             </div>
             <div className="grid md:grid-cols-3 gap-0">
               <div className="md:col-span-2 p-6 space-y-2 text-left">
@@ -130,10 +132,10 @@ function Landing() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
           <Feature icon={Shield} title="Resilient selectors that heal themselves" body="No more div[data-id='abc-123-xyz']. Codegen produces role/text/semantic locators that survive refactors. AI heals brittle selectors automatically." />
           <Feature icon={RotateCcw} title="Resume from any failed step" body="A test fails on step 14? Fix it and resume from step 14 — not square one. State is checkpointed at every step." />
-          <Feature icon={Brain} title="AI-authored tests in plain English" body='"Log in as admin and verify the dashboard loads with 3 widgets." Vector QA generates the full test, locators included.' />
+          <Feature icon={Brain} title="AI-authored tests in plain English" body='"Log in as admin and verify the dashboard loads with 3 widgets." Testrify generates the full test, locators included.' />
           <Feature icon={FlaskConical} title="API testing grandma can do" body="Paste a curl command or an OpenAPI URL. AI builds a complete test suite with assertions. Click run." />
           <Feature icon={Bot} title="AI failure analysis on every run" body="When a step fails, AI explains why, points at the likely cause, and proposes a one-click fix." />
-          <Feature icon={Workflow} title="No more async/sync hell" body="Vector QA's runtime handles awaits, retries, and timing for you. You write what you want — we figure out when." />
+          <Feature icon={Workflow} title="No more async/sync hell" body="Testrify's runtime handles awaits, retries, and timing for you. You write what you want — we figure out when." />
         </div>
       </section>
 
@@ -146,7 +148,7 @@ function Landing() {
         <div className="space-y-4">
           {[
             { n: "01", t: "Describe the test", d: "Type what you want to verify, in plain English. Or paste a curl, or record a flow." },
-            { n: "02", t: "Vector QA writes it", d: "AI generates resilient locators, sensible assertions, and a clean test spec." },
+            { n: "02", t: "Testrify writes it", d: "AI generates resilient locators, sensible assertions, and a clean test spec." },
             { n: "03", t: "Run, debug, ship", d: "Failures get root-cause analysis and one-click fixes. Resume mid-run. Done." },
           ].map((s) => (
             <div key={s.n} className="glass rounded-2xl p-6 flex gap-6 items-start shadow-card">
