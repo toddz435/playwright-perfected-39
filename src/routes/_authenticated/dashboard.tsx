@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -163,11 +163,11 @@ function Dashboard() {
               <div className="grid gap-3">
                 {projectTests.map(t => (
                   <div key={t.id} className="glass rounded-xl p-4 flex items-center gap-4 shadow-card">
-                    <div className="flex-1 min-w-0">
+                    <Link to="/tests/$testId" params={{ testId: t.id }} className="flex-1 min-w-0 hover:opacity-80 transition">
                       <div className="flex items-center gap-2"><h3 className="font-medium truncate">{t.name}</h3><Badge variant="outline" className="text-xs">{t.type}</Badge></div>
                       <p className="text-xs text-muted-foreground truncate">{t.description}</p>
                       <div className="text-xs text-muted-foreground mt-1">{t.spec?.steps?.length ?? t.spec?.requests?.length ?? 0} steps</div>
-                    </div>
+                    </Link>
                     <Button size="sm" disabled={runningId === t.id} onClick={() => runTest(t.id)} className="bg-gradient-primary border-0">
                       {runningId === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Play className="h-4 w-4 mr-1" /> Run</>}
                     </Button>
