@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Logo } from "@/components/logo";
 import { supabase } from "@/integrations/supabase/client";
-import { LayoutDashboard, FlaskConical, LogOut, Loader2 } from "lucide-react";
+import { LayoutDashboard, FlaskConical, LogOut, Loader2, Wand2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -29,7 +29,9 @@ function AuthLayout() {
 
   const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/codegen", label: "Codegen", icon: Wand2 },
     { to: "/api-tester", label: "API Tester", icon: FlaskConical },
+    { to: "/schedules", label: "Schedules", icon: Clock },
   ];
 
   return (
