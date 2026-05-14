@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Sparkles, Play, Loader2, FolderKanban, Activity, CheckCircle2, XCircle, Brain } from "lucide-react";
+import { Plus, Sparkles, Play, Loader2, FolderKanban, Activity, CheckCircle2, XCircle, Brain, Wand2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -36,6 +36,20 @@ function Dashboard() {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<{ runId: string; text: string } | null>(null);
   const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [seedBusy, setSeedBusy] = useState(false);
+
+  const seedDemo = async () => {
+    setSeedBusy(true);
+    try {
+      const { project, count } = await apiCall<any>("/api/protected/seed-demo", {});
+      toast.success(`Seeded "${project.name}" with ${count} tests`);
+      setActiveProject(project.id);
+      if (typeof window !== "undefined") localStorage.setItem("activeProject", project.id);
+      window.dispatchEvent(new CustomEvent("activeProjectChange", { detail: project.id }));
+      refresh();
+    } catch (e: any) { toast.error(e.message); }
+    setSeedBusy(false);
+  };
 
   const refresh = async () => {
     const { data: ps } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
@@ -107,27 +121,39 @@ function Dashboard() {
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">Author resilient tests with AI. Resume from any failed step.</p>
         </div>
-        <Dialog open={pOpen} onOpenChange={setPOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-primary border-0 shadow-glow"><Plus className="h-4 w-4 mr-1" /> New project</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Create a project</DialogTitle></DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2"><Label>Name</Label><Input value={pName} onChange={(e) => setPName(e.target.value)} placeholder="Acme Storefront" /></div>
-              <div className="space-y-2"><Label>Base URL <span className="text-muted-foreground">(optional)</span></Label><Input value={pUrl} onChange={(e) => setPUrl(e.target.value)} placeholder="https://acme.com" /></div>
-              <Button onClick={createProject} className="w-full bg-gradient-primary border-0">Create</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={seedBusy} onClick={seedDemo}>
+            {seedBusy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Wand2 className="h-4 w-4 mr-1" />}
+            Seed demo project
+          </Button>
+          <Dialog open={pOpen} onOpenChange={setPOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-primary border-0 shadow-glow"><Plus className="h-4 w-4 mr-1" /> New project</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Create a project</DialogTitle></DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="space-y-2"><Label>Name</Label><Input value={pName} onChange={(e) => setPName(e.target.value)} placeholder="Acme Storefront" /></div>
+                <div className="space-y-2"><Label>Base URL <span className="text-muted-foreground">(optional)</span></Label><Input value={pUrl} onChange={(e) => setPUrl(e.target.value)} placeholder="https://acme.com" /></div>
+                <Button onClick={createProject} className="w-full bg-gradient-primary border-0">Create</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </header>
 
       {projects.length === 0 ? (
         <div className="glass rounded-2xl p-12 text-center shadow-card">
           <FolderKanban className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
           <h3 className="text-lg font-semibold">No projects yet</h3>
-          <p className="text-sm text-muted-foreground mb-4">Create your first project to start writing tests.</p>
-          <Button onClick={() => setPOpen(true)} className="bg-gradient-primary border-0"><Plus className="h-4 w-4 mr-1" /> New project</Button>
+          <p className="text-sm text-muted-foreground mb-4">Create your first project, or seed a ready-to-run demo against the-internet.herokuapp.com.</p>
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" disabled={seedBusy} onClick={seedDemo}>
+              {seedBusy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Wand2 className="h-4 w-4 mr-1" />}
+              Seed demo project
+            </Button>
+            <Button onClick={() => setPOpen(true)} className="bg-gradient-primary border-0"><Plus className="h-4 w-4 mr-1" /> New project</Button>
+          </div>
         </div>
       ) : (
         <>
