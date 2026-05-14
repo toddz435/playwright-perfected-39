@@ -24,7 +24,7 @@ function ResetPage() {
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Password updated");
-    nav({ to: "/dashboard" });
+    nav({ to: "/console" });
   };
 
   return (
