@@ -17,6 +17,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSchedulesRouteImport } from './routes/_authenticated/schedules'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedConsoleRouteImport } from './routes/_authenticated/console'
 import { Route as AuthenticatedCodegenRouteImport } from './routes/_authenticated/codegen'
 import { Route as AuthenticatedApiTesterRouteImport } from './routes/_authenticated/api-tester'
 import { Route as ApiPublicRunDueSchedulesRouteImport } from './routes/api/public/run-due-schedules'
@@ -65,6 +66,11 @@ const AuthenticatedSchedulesRoute = AuthenticatedSchedulesRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedConsoleRoute = AuthenticatedConsoleRouteImport.update({
+  id: '/console',
+  path: '/console',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedCodegenRoute = AuthenticatedCodegenRouteImport.update({
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/api-tester': typeof AuthenticatedApiTesterRoute
   '/codegen': typeof AuthenticatedCodegenRoute
+  '/console': typeof AuthenticatedConsoleRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/api-tester': typeof AuthenticatedApiTesterRoute
   '/codegen': typeof AuthenticatedCodegenRoute
+  '/console': typeof AuthenticatedConsoleRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
@@ -172,6 +180,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authenticated/api-tester': typeof AuthenticatedApiTesterRoute
   '/_authenticated/codegen': typeof AuthenticatedCodegenRoute
+  '/_authenticated/console': typeof AuthenticatedConsoleRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/schedules': typeof AuthenticatedSchedulesRoute
   '/_authenticated/tests/$testId': typeof AuthenticatedTestsTestIdRoute
@@ -193,6 +202,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api-tester'
     | '/codegen'
+    | '/console'
     | '/dashboard'
     | '/schedules'
     | '/tests/$testId'
@@ -212,6 +222,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api-tester'
     | '/codegen'
+    | '/console'
     | '/dashboard'
     | '/schedules'
     | '/tests/$testId'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_authenticated/api-tester'
     | '/_authenticated/codegen'
+    | '/_authenticated/console'
     | '/_authenticated/dashboard'
     | '/_authenticated/schedules'
     | '/_authenticated/tests/$testId'
@@ -318,6 +330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/console': {
+      id: '/_authenticated/console'
+      path: '/console'
+      fullPath: '/console'
+      preLoaderRoute: typeof AuthenticatedConsoleRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/codegen': {
       id: '/_authenticated/codegen'
       path: '/codegen'
@@ -394,6 +413,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteChildren {
   AuthenticatedApiTesterRoute: typeof AuthenticatedApiTesterRoute
   AuthenticatedCodegenRoute: typeof AuthenticatedCodegenRoute
+  AuthenticatedConsoleRoute: typeof AuthenticatedConsoleRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedSchedulesRoute: typeof AuthenticatedSchedulesRoute
   AuthenticatedTestsTestIdRoute: typeof AuthenticatedTestsTestIdRoute
@@ -402,6 +422,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedApiTesterRoute: AuthenticatedApiTesterRoute,
   AuthenticatedCodegenRoute: AuthenticatedCodegenRoute,
+  AuthenticatedConsoleRoute: AuthenticatedConsoleRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedSchedulesRoute: AuthenticatedSchedulesRoute,
   AuthenticatedTestsTestIdRoute: AuthenticatedTestsTestIdRoute,
@@ -429,13 +450,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
