@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Sparkles, Play, Loader2, FolderKanban, Activity, CheckCircle2, XCircle, Brain } from "lucide-react";
+import { Plus, Sparkles, Play, Loader2, FolderKanban, Activity, CheckCircle2, XCircle, Brain, Wand2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({

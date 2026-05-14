@@ -21,6 +21,7 @@ import { Route as AuthenticatedConsoleRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedCodegenRouteImport } from './routes/_authenticated/codegen'
 import { Route as AuthenticatedApiTesterRouteImport } from './routes/_authenticated/api-tester'
 import { Route as ApiPublicRunDueSchedulesRouteImport } from './routes/api/public/run-due-schedules'
+import { Route as ApiProtectedSeedDemoRouteImport } from './routes/api/protected/seed-demo'
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
 import { Route as ApiProtectedAiHealSelectorRouteImport } from './routes/api/protected/ai-heal-selector'
 import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/protected/ai-generate-test'
@@ -89,6 +90,11 @@ const ApiPublicRunDueSchedulesRoute =
     path: '/api/public/run-due-schedules',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedSeedDemoRoute = ApiProtectedSeedDemoRouteImport.update({
+  id: '/api/protected/seed-demo',
+  path: '/api/protected/seed-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProtectedRunTestRoute = ApiProtectedRunTestRouteImport.update({
   id: '/api/protected/run-test',
   path: '/api/protected/run-test',
@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
+  '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
 }
 export interface FileRoutesByTo {
@@ -168,6 +175,7 @@ export interface FileRoutesByTo {
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
+  '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
 }
 export interface FileRoutesById {
@@ -190,6 +198,7 @@ export interface FileRoutesById {
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
+  '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
 }
 export interface FileRouteTypes {
@@ -212,6 +221,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
     | '/api/protected/run-test'
+    | '/api/protected/seed-demo'
     | '/api/public/run-due-schedules'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -232,6 +242,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
     | '/api/protected/run-test'
+    | '/api/protected/seed-demo'
     | '/api/public/run-due-schedules'
   id:
     | '__root__'
@@ -253,6 +264,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
     | '/api/protected/run-test'
+    | '/api/protected/seed-demo'
     | '/api/public/run-due-schedules'
   fileRoutesById: FileRoutesById
 }
@@ -269,6 +281,7 @@ export interface RootRouteChildren {
   ApiProtectedAiGenerateTestRoute: typeof ApiProtectedAiGenerateTestRoute
   ApiProtectedAiHealSelectorRoute: typeof ApiProtectedAiHealSelectorRoute
   ApiProtectedRunTestRoute: typeof ApiProtectedRunTestRoute
+  ApiProtectedSeedDemoRoute: typeof ApiProtectedSeedDemoRoute
   ApiPublicRunDueSchedulesRoute: typeof ApiPublicRunDueSchedulesRoute
 }
 
@@ -358,6 +371,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRunDueSchedulesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/seed-demo': {
+      id: '/api/protected/seed-demo'
+      path: '/api/protected/seed-demo'
+      fullPath: '/api/protected/seed-demo'
+      preLoaderRoute: typeof ApiProtectedSeedDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/run-test': {
       id: '/api/protected/run-test'
       path: '/api/protected/run-test'
@@ -445,6 +465,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedAiGenerateTestRoute: ApiProtectedAiGenerateTestRoute,
   ApiProtectedAiHealSelectorRoute: ApiProtectedAiHealSelectorRoute,
   ApiProtectedRunTestRoute: ApiProtectedRunTestRoute,
+  ApiProtectedSeedDemoRoute: ApiProtectedSeedDemoRoute,
   ApiPublicRunDueSchedulesRoute: ApiPublicRunDueSchedulesRoute,
 }
 export const routeTree = rootRouteImport
