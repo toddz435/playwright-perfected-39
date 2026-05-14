@@ -36,6 +36,20 @@ function Dashboard() {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<{ runId: string; text: string } | null>(null);
   const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [seedBusy, setSeedBusy] = useState(false);
+
+  const seedDemo = async () => {
+    setSeedBusy(true);
+    try {
+      const { project, count } = await apiCall<any>("/api/protected/seed-demo", {});
+      toast.success(`Seeded "${project.name}" with ${count} tests`);
+      setActiveProject(project.id);
+      if (typeof window !== "undefined") localStorage.setItem("activeProject", project.id);
+      window.dispatchEvent(new CustomEvent("activeProjectChange", { detail: project.id }));
+      refresh();
+    } catch (e: any) { toast.error(e.message); }
+    setSeedBusy(false);
+  };
 
   const refresh = async () => {
     const { data: ps } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
