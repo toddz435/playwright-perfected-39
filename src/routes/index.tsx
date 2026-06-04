@@ -56,8 +56,7 @@ function Landing() {
           <span>AI-native QA. Built on Playwright. Designed for humans.</span>
         </div>
         <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] mb-6">
-          Tests that <span className="text-gradient">don't break</span>.<br />
-          QA that <span className="text-gradient">doesn't suck</span>.
+          Quality is our <span className="text-gradient">Priority</span>.
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
           Testrify fixes everything that's annoying about Playwright. Resilient selectors, resumable runs, AI-authored tests, API testing your grandma could do.
