@@ -64,11 +64,16 @@ function Dashboard() {
   useEffect(() => { refresh(); }, []); // eslint-disable-line
 
   const createProject = async () => {
-    if (!pName.trim()) return;
-    const { error } = await supabase.from("projects").insert({ owner_id: user!.id, name: pName, base_url: pUrl || null });
-    if (error) return toast.error(error.message);
-    setPName(""); setPUrl(""); setPOpen(false); toast.success("Project created");
-    refresh();
+    if (!pName.trim()) return toast.error("Project name is required");
+    if (!user?.id) return toast.error("Not signed in yet — please wait a moment and try again");
+    try {
+      const { error } = await supabase.from("projects").insert({ owner_id: user.id, name: pName.trim(), base_url: pUrl.trim() || null });
+      if (error) return toast.error(error.message);
+      setPName(""); setPUrl(""); setPOpen(false); toast.success("Project created");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to create project");
+    }
   };
 
   const generateTest = async () => {
