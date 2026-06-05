@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Sign in — Vector QA" }] }),
+  head: () => ({ meta: [{ title: "Sign in — Testrify" }] }),
   component: LoginPage,
 });
 
@@ -36,7 +36,7 @@ function LoginPage() {
         <div className="flex justify-center mb-8"><Logo /></div>
         <div className="glass rounded-2xl p-8 shadow-elevated">
           <h1 className="text-2xl font-bold tracking-tight mb-1">Welcome back</h1>
-          <p className="text-sm text-muted-foreground mb-6">Sign in to your Vector QA workspace.</p>
+          <p className="text-sm text-muted-foreground mb-6">Sign in to your Testrify QA workspace.</p>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
