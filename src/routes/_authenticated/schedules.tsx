@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { FullPageSpinner } from "@/components/full-page-spinner";
 import { Plus, Loader2, Trash2, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/schedules")({
@@ -59,7 +60,7 @@ function Schedules() {
     toast.success("Removed"); refresh();
   };
 
-  if (loading) return <div className="p-12 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) return <FullPageSpinner />;
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-6">

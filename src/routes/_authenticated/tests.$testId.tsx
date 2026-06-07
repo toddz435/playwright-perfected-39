@@ -2,11 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { apiCall } from "@/lib/api-client";
+import { useRunTest } from "@/hooks/use-run-test";
+import { useAnalyzeRun } from "@/hooks/use-analyze-run";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { FullPageSpinner } from "@/components/full-page-spinner";
+import { StepStatusBar } from "@/components/step-status-bar";
 import { toast } from "sonner";
-import { ArrowLeft, Play, Loader2, Sparkles, CheckCircle2, XCircle, Wand2, ChevronRight, Clock } from "lucide-react";
+import { ArrowLeft, Play, Loader2, Sparkles, Wand2, ChevronRight, Clock } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 export const Route = createFileRoute("/_authenticated/tests/$testId")({
@@ -19,11 +22,8 @@ function TestDetail() {
   const [test, setTest] = useState<any>(null);
   const [runs, setRuns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
   const [healing, setHealing] = useState<number | null>(null);
   const [healed, setHealed] = useState<Record<number, any>>({});
-  const [analysis, setAnalysis] = useState<{ runId: string; text: string } | null>(null);
-  const [analysisBusy, setAnalysisBusy] = useState(false);
 
   const refresh = async () => {
     const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
@@ -34,28 +34,14 @@ function TestDetail() {
   };
   useEffect(() => { refresh(); }, [testId]); // eslint-disable-line
 
-  const run = async (resumeFromStep?: number) => {
-    setRunning(true);
-    try {
-      const { run } = await apiCall<any>("/api/protected/run-test", { testId, resumeFromStep });
-      toast[run.status === "passed" ? "success" : "error"](`Run ${run.status}`);
-      refresh();
-      if (run.status === "failed") analyzeRun(run);
-    } catch (e: any) { toast.error(e.message); }
-    setRunning(false);
-  };
+  const { analysis, analysisBusy, analyzeRun } = useAnalyzeRun();
 
-  const analyzeRun = async (r: any) => {
-    setAnalysisBusy(true); setAnalysis({ runId: r.id, text: "" });
-    try {
-      const failed = (r.steps || []).find((s: any) => s.status === "failed");
-      const { analysis } = await apiCall<any>("/api/protected/ai-analyze-failure", {
-        test, failedStep: failed, error: failed?.error, allSteps: r.steps,
-      });
-      setAnalysis({ runId: r.id, text: analysis });
-    } catch (e: any) { toast.error(e.message); setAnalysis(null); }
-    setAnalysisBusy(false);
-  };
+  const { runningId, runTest } = useRunTest({
+    onComplete: (run) => {
+      refresh();
+      if (run.status === "failed") analyzeRun(run, test);
+    },
+  });
 
   const healStep = async (idx: number) => {
     const step = test.spec.steps[idx];
@@ -82,7 +68,7 @@ function TestDetail() {
     refresh();
   };
 
-  if (loading) return <div className="p-12 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) return <FullPageSpinner />;
   if (!test) return <div className="p-12 text-center text-muted-foreground">Test not found.</div>;
 
   const isApi = test.type === "api";
@@ -100,8 +86,8 @@ function TestDetail() {
             </div>
             <p className="text-muted-foreground text-sm mt-1">{test.description}</p>
           </div>
-          <Button disabled={running} onClick={() => run()} className="bg-gradient-primary border-0 shadow-glow">
-            {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />} Run test
+          <Button disabled={runningId === testId} onClick={() => runTest(testId)} className="bg-gradient-primary border-0 shadow-glow">
+            {runningId === testId ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />} Run test
           </Button>
         </div>
       </div>
@@ -150,7 +136,7 @@ function TestDetail() {
             {runs.map((r) => (
               <div key={r.id} className="glass rounded-xl p-4 shadow-card">
                 <div className="flex items-center gap-3">
-                  {r.status === "passed" ? <CheckCircle2 className="h-5 w-5 text-success" /> : <XCircle className="h-5 w-5 text-destructive" />}
+                  {r.status === "passed" ? <span className="h-5 w-5 text-success">&#x2714;</span> : <span className="h-5 w-5 text-destructive">&#x2718;</span>}
                   <div className="flex-1 min-w-0">
                     <div className="font-medium">{r.status === "passed" ? "Passed" : "Failed"} · {r.summary?.passed ?? 0}/{r.summary?.total ?? 0} steps</div>
                     <div className="text-xs text-muted-foreground">{r.duration_ms}ms · {new Date(r.created_at).toLocaleString()}</div>
@@ -159,19 +145,16 @@ function TestDetail() {
                     <>
                       <Button size="sm" variant="outline" onClick={() => {
                         const idx = (r.steps || []).findIndex((s: any) => s.status === "failed");
-                        run(idx);
+                        runTest(testId, idx);
                       }}>
                         <Play className="h-3.5 w-3.5 mr-1" /> Resume from failed
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => analyzeRun(r)}>Analyze</Button>
+                      <Button size="sm" variant="ghost" onClick={() => analyzeRun(r, test)}>Analyze</Button>
                     </>
                   )}
                 </div>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {(r.steps || []).map((s: any, i: number) => (
-                    <div key={i} title={`${s.action || s.name} ${s.target || ""}`}
-                      className={`h-1.5 flex-1 min-w-[8px] rounded-full ${s.status === "passed" ? "bg-success" : s.status === "failed" ? "bg-destructive" : s.status === "skipped" ? "bg-muted-foreground/30" : "bg-muted"}`} />
-                  ))}
+                <div className="mt-3">
+                  <StepStatusBar steps={r.steps || []} />
                 </div>
                 {analysis?.runId === r.id && (
                   <div className="mt-4 border-t border-border pt-4">

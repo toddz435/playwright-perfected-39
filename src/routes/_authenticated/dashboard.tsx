@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useRunTest } from "@/hooks/use-run-test";
+import { useAnalyzeRun } from "@/hooks/use-analyze-run";
 import { apiCall } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { FullPageSpinner } from "@/components/full-page-spinner";
+import { StepStatusBar } from "@/components/step-status-bar";
 import { toast } from "sonner";
-import { Plus, Sparkles, Play, Loader2, FolderKanban, Activity, CheckCircle2, XCircle, Brain, Wand2 } from "lucide-react";
+import { Plus, Sparkles, Play, Loader2, FolderKanban, Activity, Brain, Wand2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -32,11 +36,31 @@ function Dashboard() {
   // AI test author
   const [aiPrompt, setAiPrompt] = useState(""); const [aiBusy, setAiBusy] = useState(false);
 
-  // run + analysis
-  const [runningId, setRunningId] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<{ runId: string; text: string } | null>(null);
-  const [analysisBusy, setAnalysisBusy] = useState(false);
+  // seed
   const [seedBusy, setSeedBusy] = useState(false);
+
+  const refresh = async () => {
+    const { data: ps } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+    setProjects(ps || []);
+    if (!activeProject && ps?.[0]) setActiveProject(ps[0].id);
+    const { data: ts } = await supabase.from("tests").select("*").order("created_at", { ascending: false });
+    setTests(ts || []);
+    const { data: rs } = await supabase.from("runs").select("*").order("created_at", { ascending: false }).limit(20);
+    setRuns(rs || []);
+    setLoading(false);
+  };
+
+  const { analysis, analysisBusy, analyzeRun } = useAnalyzeRun();
+
+  const { runningId, runTest } = useRunTest({
+    onComplete: (run) => {
+      refresh();
+      if (run.status === "failed") {
+        const test = tests.find(t => t.id === run.test_id);
+        analyzeRun(run, test);
+      }
+    },
+  });
 
   const seedDemo = async () => {
     setSeedBusy(true);
@@ -51,16 +75,6 @@ function Dashboard() {
     setSeedBusy(false);
   };
 
-  const refresh = async () => {
-    const { data: ps } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
-    setProjects(ps || []);
-    if (!activeProject && ps?.[0]) setActiveProject(ps[0].id);
-    const { data: ts } = await supabase.from("tests").select("*").order("created_at", { ascending: false });
-    setTests(ts || []);
-    const { data: rs } = await supabase.from("runs").select("*").order("created_at", { ascending: false }).limit(20);
-    setRuns(rs || []);
-    setLoading(false);
-  };
   useEffect(() => { refresh(); }, []); // eslint-disable-line
 
   const createProject = async () => {
@@ -91,33 +105,9 @@ function Dashboard() {
     setAiBusy(false);
   };
 
-  const runTest = async (testId: string) => {
-    setRunningId(testId);
-    try {
-      const { run } = await apiCall<any>("/api/protected/run-test", { testId });
-      toast[run.status === "passed" ? "success" : "error"](`Run ${run.status}`);
-      refresh();
-      if (run.status === "failed") analyzeRun(run);
-    } catch (e: any) { toast.error(e.message); }
-    setRunningId(null);
-  };
-
-  const analyzeRun = async (run: any) => {
-    setAnalysisBusy(true); setAnalysis({ runId: run.id, text: "" });
-    try {
-      const test = tests.find(t => t.id === run.test_id);
-      const failed = (run.steps || []).find((s: any) => s.status === "failed");
-      const { analysis } = await apiCall<any>("/api/protected/ai-analyze-failure", {
-        test, failedStep: failed, error: failed?.error, allSteps: run.steps,
-      });
-      setAnalysis({ runId: run.id, text: analysis });
-    } catch (e: any) { toast.error(e.message); setAnalysis(null); }
-    setAnalysisBusy(false);
-  };
-
   const projectTests = tests.filter(t => t.project_id === activeProject);
 
-  if (loading) return <div className="p-12 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) return <FullPageSpinner />;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -220,23 +210,19 @@ function Dashboard() {
                   return (
                     <div key={r.id} className="glass rounded-xl p-4 shadow-card">
                       <div className="flex items-center gap-3">
-                        {r.status === "passed" ? <CheckCircle2 className="h-5 w-5 text-success" /> : <XCircle className="h-5 w-5 text-destructive" />}
+                        {r.status === "passed" ? <span className="h-5 w-5 text-success">&#x2714;</span> : <span className="h-5 w-5 text-destructive">&#x2718;</span>}
                         <div className="flex-1 min-w-0">
                           <div className="font-medium truncate">{test?.name || "Test"}</div>
                           <div className="text-xs text-muted-foreground">{r.summary?.passed ?? 0}/{r.summary?.total ?? 0} steps · {r.duration_ms}ms · {new Date(r.created_at).toLocaleString()}</div>
                         </div>
                         {r.status === "failed" && (
-                          <Button size="sm" variant="outline" onClick={() => analyzeRun(r)}>
+                          <Button size="sm" variant="outline" onClick={() => analyzeRun(r, test)}>
                             <Brain className="h-3.5 w-3.5 mr-1" /> Analyze
                           </Button>
                         )}
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {(r.steps || []).map((s: any, i: number) => (
-                          <div key={i} title={`${s.action || s.name} ${s.target || ""}`}
-                            className={`h-1.5 flex-1 min-w-[8px] rounded-full
-                              ${s.status === "passed" ? "bg-success" : s.status === "failed" ? "bg-destructive" : "bg-muted"}`} />
-                        ))}
+                      <div className="mt-3">
+                        <StepStatusBar steps={r.steps || []} />
                       </div>
                       {analysis?.runId === r.id && (
                         <div className="mt-4 border-t border-border pt-4">

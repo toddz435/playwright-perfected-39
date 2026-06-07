@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { apiCall } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FullPageSpinner } from "@/components/full-page-spinner";
+import { StepStatusBar } from "@/components/step-status-bar";
 import { toast } from "sonner";
 import {
   Activity, Play, CheckCircle2, XCircle, Loader2, Clock, Zap,
@@ -25,32 +27,30 @@ function Console() {
   );
   const pollRef = useRef<number | null>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const [{ data: ts }, { data: rs }] = await Promise.all([
       supabase.from("tests").select("*").order("created_at", { ascending: false }),
       supabase.from("runs").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
     setTests(ts || []); setRuns(rs || []); setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     refresh();
     const onProj = (e: Event) => setActiveProject((e as CustomEvent).detail);
     window.addEventListener("activeProjectChange", onProj);
 
-    // Realtime subscription on runs
     const channel = supabase.channel("console-runs")
       .on("postgres_changes", { event: "*", schema: "public", table: "runs" }, () => refresh())
       .subscribe();
 
-    // Soft poll fallback every 4s
     pollRef.current = window.setInterval(refresh, 4000);
     return () => {
       window.removeEventListener("activeProjectChange", onProj);
       supabase.removeChannel(channel);
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, []);
+  }, [refresh]);
 
   const runTest = async (testId: string) => {
     setRunningIds(s => new Set(s).add(testId));
@@ -78,7 +78,7 @@ function Console() {
     ? Math.round(last24h.reduce((s, r) => s + (r.duration_ms || 0), 0) / last24h.length)
     : 0;
 
-  if (loading) return <div className="p-12 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) return <FullPageSpinner />;
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
@@ -143,15 +143,8 @@ function Console() {
                         {r.summary?.passed ?? 0}/{r.summary?.total ?? 0} steps · {r.duration_ms ?? 0}ms ·{" "}
                         {new Date(r.created_at).toLocaleTimeString()}
                       </div>
-                      <div className="mt-2 flex gap-0.5">
-                        {(r.steps || []).map((s: any, i: number) => (
-                          <div key={i} title={`${s.action || s.name || ""} ${s.target || ""}`}
-                            className={`h-1 flex-1 min-w-[6px] rounded-full
-                              ${s.status === "passed" ? "bg-success"
-                                : s.status === "failed" ? "bg-destructive"
-                                : s.status === "running" ? "bg-primary-glow animate-pulse"
-                                : "bg-muted"}`} />
-                        ))}
+                      <div className="mt-2">
+                        <StepStatusBar steps={r.steps || []} height="h-1" />
                       </div>
                     </div>
                     {r.status === "failed" && (

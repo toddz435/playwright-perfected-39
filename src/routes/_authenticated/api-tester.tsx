@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useRunTest } from "@/hooks/use-run-test";
 import { apiCall } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,11 +20,14 @@ function ApiTester() {
   const { user } = useAuth();
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [running, setRunning] = useState(false);
   const [suite, setSuite] = useState<any | null>(null);
   const [testId, setTestId] = useState<string | null>(null);
   const [run, setRun] = useState<any | null>(null);
   const [project, setProject] = useState<any | null>(null);
+
+  const { runningId, runTest } = useRunTest({
+    onComplete: (r) => setRun(r),
+  });
 
   useEffect(() => {
     (async () => {
@@ -54,13 +58,8 @@ function ApiTester() {
 
   const runSuite = async () => {
     if (!testId) return;
-    setRunning(true); setRun(null);
-    try {
-      const { run } = await apiCall<any>("/api/protected/run-test", { testId });
-      setRun(run);
-      toast[run.status === "passed" ? "success" : "error"](`Run ${run.status}`);
-    } catch (e: any) { toast.error(e.message); }
-    setRunning(false);
+    setRun(null);
+    await runTest(testId);
   };
 
   return (
@@ -87,8 +86,8 @@ function ApiTester() {
               <h2 className="font-semibold text-lg">{suite.name}</h2>
               <p className="text-sm text-muted-foreground">{suite.description}</p>
             </div>
-            <Button disabled={running} onClick={runSuite} className="bg-gradient-primary border-0">
-              {running ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running…</> : <><Play className="h-4 w-4 mr-2" /> Run suite</>}
+            <Button disabled={runningId === testId} onClick={runSuite} className="bg-gradient-primary border-0">
+              {runningId === testId ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running…</> : <><Play className="h-4 w-4 mr-2" /> Run suite</>}
             </Button>
           </div>
           <div className="space-y-3">
