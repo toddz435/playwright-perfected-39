@@ -45,11 +45,13 @@ function AuthLayout() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: ps } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+      const { data: ps, error: pErr } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+      if (pErr) console.error("Failed to load projects:", pErr.message);
       setProjects(ps || []);
       const stored = typeof window !== "undefined" ? localStorage.getItem("activeProject") : null;
       setActiveProject(stored && ps?.some(p => p.id === stored) ? stored : ps?.[0]?.id ?? null);
-      const { data: ts } = await supabase.from("tests").select("id,name,project_id").order("created_at", { ascending: false });
+      const { data: ts, error: tErr } = await supabase.from("tests").select("id,name,project_id").order("created_at", { ascending: false });
+      if (tErr) console.error("Failed to load tests:", tErr.message);
       setTests(ts || []);
     })();
   }, [user]);

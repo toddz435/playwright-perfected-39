@@ -27,12 +27,12 @@ function ApiTester() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("projects").select("*").limit(1).maybeSingle();
-      if (data) setProject(data);
-      else {
-        const { data: p } = await supabase.from("projects").insert({ owner_id: user!.id, name: "API Tests" }).select().single();
-        setProject(p);
-      }
+      const { data, error } = await supabase.from("projects").select("*").limit(1).maybeSingle();
+      if (error) { console.error("Failed to load project:", error.message); return; }
+      if (data) { setProject(data); return; }
+      const { data: p, error: insertErr } = await supabase.from("projects").insert({ owner_id: user!.id, name: "API Tests" }).select().single();
+      if (insertErr) { console.error("Failed to create default project:", insertErr.message); toast.error("Failed to create default project"); return; }
+      setProject(p);
     })();
   }, [user]);
 

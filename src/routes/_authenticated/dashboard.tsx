@@ -52,12 +52,15 @@ function Dashboard() {
   };
 
   const refresh = async () => {
-    const { data: ps } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+    const { data: ps, error: pErr } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+    if (pErr) console.error("Failed to load projects:", pErr.message);
     setProjects(ps || []);
     if (!activeProject && ps?.[0]) setActiveProject(ps[0].id);
-    const { data: ts } = await supabase.from("tests").select("*").order("created_at", { ascending: false });
+    const { data: ts, error: tErr } = await supabase.from("tests").select("*").order("created_at", { ascending: false });
+    if (tErr) console.error("Failed to load tests:", tErr.message);
     setTests(ts || []);
-    const { data: rs } = await supabase.from("runs").select("*").order("created_at", { ascending: false }).limit(20);
+    const { data: rs, error: rErr } = await supabase.from("runs").select("*").order("created_at", { ascending: false }).limit(20);
+    if (rErr) console.error("Failed to load runs:", rErr.message);
     setRuns(rs || []);
     setLoading(false);
   };

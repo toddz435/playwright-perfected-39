@@ -26,9 +26,11 @@ function TestDetail() {
   const [analysisBusy, setAnalysisBusy] = useState(false);
 
   const refresh = async () => {
-    const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
+    const { data: t, error: tErr } = await supabase.from("tests").select("*").eq("id", testId).single();
+    if (tErr) console.error("Failed to load test:", tErr.message);
     setTest(t);
-    const { data: rs } = await supabase.from("runs").select("*").eq("test_id", testId).order("created_at", { ascending: false }).limit(20);
+    const { data: rs, error: rErr } = await supabase.from("runs").select("*").eq("test_id", testId).order("created_at", { ascending: false }).limit(20);
+    if (rErr) console.error("Failed to load runs:", rErr.message);
     setRuns(rs || []);
     setLoading(false);
   };

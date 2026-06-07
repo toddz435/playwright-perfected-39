@@ -11,8 +11,9 @@ export const Route = createFileRoute("/api/protected/run-test")({
           const { testId, resumeFromStep } = await request.json();
           if (!testId) return json({ error: "testId required" }, { status: 400 });
 
-          const SUPABASE_URL = process.env.SUPABASE_URL!;
-          const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY!;
+          const SUPABASE_URL = process.env.SUPABASE_URL;
+          const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+          if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return json({ error: "Server misconfigured: missing Supabase env vars" }, { status: 500 });
           const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
             global: { headers: { Authorization: `Bearer ${token}` } },
             auth: { persistSession: false, autoRefreshToken: false },

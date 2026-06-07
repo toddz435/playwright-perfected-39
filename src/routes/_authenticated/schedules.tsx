@@ -31,12 +31,14 @@ function Schedules() {
   const [cron, setCron] = useState("0 * * * *");
 
   const refresh = async () => {
-    const [{ data: ts }, { data: ss }] = await Promise.all([
+    const [testsRes, schedsRes] = await Promise.all([
       supabase.from("tests").select("*").order("created_at", { ascending: false }),
       supabase.from("schedules").select("*").order("created_at", { ascending: false }),
     ]);
-    setTests(ts || []); setSchedules(ss || []);
-    if (!testId && ts?.[0]) setTestId(ts[0].id);
+    if (testsRes.error) console.error("Failed to load tests:", testsRes.error.message);
+    if (schedsRes.error) console.error("Failed to load schedules:", schedsRes.error.message);
+    setTests(testsRes.data || []); setSchedules(schedsRes.data || []);
+    if (!testId && testsRes.data?.[0]) setTestId(testsRes.data[0].id);
     setLoading(false);
   };
   useEffect(() => { refresh(); }, []); // eslint-disable-line
@@ -51,11 +53,13 @@ function Schedules() {
   };
 
   const toggle = async (id: string, enabled: boolean) => {
-    await supabase.from("schedules").update({ enabled }).eq("id", id);
+    const { error } = await supabase.from("schedules").update({ enabled }).eq("id", id);
+    if (error) return toast.error(error.message);
     refresh();
   };
   const remove = async (id: string) => {
-    await supabase.from("schedules").delete().eq("id", id);
+    const { error } = await supabase.from("schedules").delete().eq("id", id);
+    if (error) return toast.error(error.message);
     toast.success("Removed"); refresh();
   };
 

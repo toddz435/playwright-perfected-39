@@ -40,8 +40,9 @@ async function runTest(test: any, ownerId: string) {
               ok = text.includes(String(a.expected));
               actual = ok ? "found" : "missing";
             }
-          } catch {
+          } catch (e: any) {
             ok = false;
+            actual = e?.message || "error";
           }
           if (!ok) stepOk = false;
           checks.push({ ...a, ok, actual });
@@ -95,7 +96,7 @@ async function runTest(test: any, ownerId: string) {
     }
   }
 
-  await supabaseAdmin.from("runs").insert({
+  const { error: insertErr } = await supabaseAdmin.from("runs").insert({
     test_id: test.id,
     owner_id: ownerId,
     status,
@@ -111,6 +112,7 @@ async function runTest(test: any, ownerId: string) {
       scheduled: true,
     },
   });
+  if (insertErr) console.error(`Failed to insert run for test ${test.id}:`, insertErr.message);
   return status;
 }
 
@@ -137,18 +139,22 @@ export const Route = createFileRoute("/api/public/run-due-schedules")({
 
           const results: any[] = [];
           for (const sched of due) {
-            const { data: test } = await supabaseAdmin
+            const { data: test, error: testErr } = await supabaseAdmin
               .from("tests")
               .select("*")
               .eq("id", sched.test_id)
               .single();
-            if (!test) continue;
+            if (testErr || !test) {
+              if (testErr) console.error(`Failed to fetch test ${sched.test_id} for schedule ${sched.id}:`, testErr.message);
+              continue;
+            }
             try {
               const status = await runTest(test, sched.owner_id);
-              await supabaseAdmin
+              const { error: updateErr } = await supabaseAdmin
                 .from("schedules")
                 .update({ last_run_at: now.toISOString() })
                 .eq("id", sched.id);
+              if (updateErr) console.error(`Failed to update last_run_at for schedule ${sched.id}:`, updateErr.message);
               results.push({ schedule: sched.id, status });
             } catch (e: any) {
               results.push({ schedule: sched.id, error: e?.message });

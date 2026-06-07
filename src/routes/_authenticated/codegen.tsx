@@ -33,7 +33,8 @@ function Codegen() {
   const [result, setResult] = useState<any>(null);
 
   useEffect(() => {
-    supabase.from("projects").select("*").order("created_at", { ascending: false }).then(({ data }) => {
+    supabase.from("projects").select("*").order("created_at", { ascending: false }).then(({ data, error }) => {
+      if (error) { console.error("Failed to load projects:", error.message); return; }
       setProjects(data || []);
       if (data?.[0]) setProjectId(data[0].id);
     });

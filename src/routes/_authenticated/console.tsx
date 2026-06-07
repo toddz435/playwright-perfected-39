@@ -26,11 +26,13 @@ function Console() {
   const pollRef = useRef<number | null>(null);
 
   const refresh = async () => {
-    const [{ data: ts }, { data: rs }] = await Promise.all([
+    const [testsRes, runsRes] = await Promise.all([
       supabase.from("tests").select("*").order("created_at", { ascending: false }),
       supabase.from("runs").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
-    setTests(ts || []); setRuns(rs || []); setLoading(false);
+    if (testsRes.error) console.error("Failed to load tests:", testsRes.error.message);
+    if (runsRes.error) console.error("Failed to load runs:", runsRes.error.message);
+    setTests(testsRes.data || []); setRuns(runsRes.data || []); setLoading(false);
   };
 
   useEffect(() => {
