@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { requireUser, json } from "@/lib/server-auth.server";
-import { createClient } from "@supabase/supabase-js";
+import { json } from "@/lib/server-auth.server";
+import { protectedHandler } from "@/lib/api-handler.server";
+import { createUserClient } from "@/lib/supabase-user-client.server";
 
 const BASE = "https://the-internet.herokuapp.com";
 
@@ -95,41 +96,30 @@ const DEMO_TESTS = [
 export const Route = createFileRoute("/api/protected/seed-demo")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
-        try {
-          const { userId, token } = await requireUser(request);
-          const SUPABASE_URL = process.env.SUPABASE_URL!;
-          const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY!;
-          const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-            global: { headers: { Authorization: `Bearer ${token}` } },
-            auth: { persistSession: false, autoRefreshToken: false },
-          });
+      POST: protectedHandler(async ({ userId, token }) => {
+        const sb = createUserClient(token);
 
-          const { data: project, error: pErr } = await sb.from("projects").insert({
-            owner_id: userId,
-            name: "Demo — The Internet",
-            base_url: BASE,
-            description: "Prebuilt tests against the-internet.herokuapp.com and ReqRes for instant playground.",
-          }).select().single();
-          if (pErr || !project) return json({ error: pErr?.message || "Could not create project" }, { status: 500 });
+        const { data: project, error: pErr } = await sb.from("projects").insert({
+          owner_id: userId,
+          name: "Demo — The Internet",
+          base_url: BASE,
+          description: "Prebuilt tests against the-internet.herokuapp.com and ReqRes for instant playground.",
+        }).select().single();
+        if (pErr || !project) return json({ error: pErr?.message || "Could not create project" }, { status: 500 });
 
-          const rows = DEMO_TESTS.map((t) => ({
-            project_id: project.id,
-            owner_id: userId,
-            name: t.name,
-            description: t.description,
-            type: t.type,
-            spec: t.spec,
-          }));
-          const { error: tErr } = await sb.from("tests").insert(rows);
-          if (tErr) return json({ error: tErr.message }, { status: 500 });
+        const rows = DEMO_TESTS.map((t) => ({
+          project_id: project.id,
+          owner_id: userId,
+          name: t.name,
+          description: t.description,
+          type: t.type,
+          spec: t.spec,
+        }));
+        const { error: tErr } = await sb.from("tests").insert(rows);
+        if (tErr) return json({ error: tErr.message }, { status: 500 });
 
-          return json({ project, count: rows.length });
-        } catch (e: any) {
-          if (e instanceof Response) return e;
-          return json({ error: e?.message || "Failed" }, { status: 500 });
-        }
-      },
+        return json({ project, count: rows.length });
+      }),
     },
   },
 });
