@@ -9,7 +9,10 @@ export const Route = createFileRoute("/api/protected/ai-generate-test")({
         try {
           await requireUser(request);
           const { prompt, baseUrl } = await request.json();
-          if (!prompt || typeof prompt !== "string") return json({ error: "prompt required" }, { status: 400 });
+          if (!prompt || typeof prompt !== "string")
+            return json({ error: "prompt required" }, { status: 400 });
+          if (prompt.length > 10_000)
+            return json({ error: "Prompt too large (max 10 KB)" }, { status: 413 });
 
           const result = await aiChat({
             system: `You are an expert QA engineer who writes resilient browser tests for a Playwright-based runtime called Vector QA.
@@ -38,10 +41,32 @@ Return a structured test spec.`,
                     items: {
                       type: "object",
                       properties: {
-                        action: { type: "string", enum: ["goto", "click", "fill", "press", "wait", "expect_visible", "expect_text", "expect_url"] },
-                        target: { type: "string", description: "Resilient locator: 'role:button[name=Sign in]', 'text:Add to cart', 'label:Email', 'placeholder:Search', 'testid:cart-total'. For goto/expect_url use URL." },
-                        value: { type: "string", description: "Optional value for fill/press/expect_text/expect_url" },
-                        rationale: { type: "string", description: "Why this locator is resilient (one short sentence)" },
+                        action: {
+                          type: "string",
+                          enum: [
+                            "goto",
+                            "click",
+                            "fill",
+                            "press",
+                            "wait",
+                            "expect_visible",
+                            "expect_text",
+                            "expect_url",
+                          ],
+                        },
+                        target: {
+                          type: "string",
+                          description:
+                            "Resilient locator: 'role:button[name=Sign in]', 'text:Add to cart', 'label:Email', 'placeholder:Search', 'testid:cart-total'. For goto/expect_url use URL.",
+                        },
+                        value: {
+                          type: "string",
+                          description: "Optional value for fill/press/expect_text/expect_url",
+                        },
+                        rationale: {
+                          type: "string",
+                          description: "Why this locator is resilient (one short sentence)",
+                        },
                       },
                       required: ["action", "target"],
                       additionalProperties: false,
@@ -57,7 +82,7 @@ Return a structured test spec.`,
         } catch (e: any) {
           if (e instanceof Response) return e;
           console.error(e);
-          return json({ error: e?.message || "Failed" }, { status: 500 });
+          return json({ error: "Internal server error" }, { status: 500 });
         }
       },
     },

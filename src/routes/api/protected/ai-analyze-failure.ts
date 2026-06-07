@@ -9,6 +9,9 @@ export const Route = createFileRoute("/api/protected/ai-analyze-failure")({
         try {
           await requireUser(request);
           const { test, failedStep, error, allSteps } = await request.json();
+          const inputSize = JSON.stringify({ test, failedStep, error, allSteps }).length;
+          if (inputSize > 50_000)
+            return json({ error: "Input too large (max 50 KB)" }, { status: 413 });
           const result = await aiChat({
             system: `You are a senior QA engineer doing root-cause analysis on test failures. Be concise, specific, and actionable. Output GitHub-flavored markdown.`,
             user: `A test failed. Provide a root-cause analysis with a likely fix.
@@ -29,7 +32,7 @@ Respond with these sections:
         } catch (e: any) {
           if (e instanceof Response) return e;
           console.error(e);
-          return json({ error: e?.message || "Failed" }, { status: 500 });
+          return json({ error: "Internal server error" }, { status: 500 });
         }
       },
     },

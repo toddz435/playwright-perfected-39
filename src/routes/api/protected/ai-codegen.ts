@@ -9,7 +9,10 @@ export const Route = createFileRoute("/api/protected/ai-codegen")({
         try {
           await requireUser(request);
           const { script } = await request.json();
-          if (!script || typeof script !== "string") return json({ error: "script required" }, { status: 400 });
+          if (!script || typeof script !== "string")
+            return json({ error: "script required" }, { status: 400 });
+          if (script.length > 50_000)
+            return json({ error: "Script too large (max 50 KB)" }, { status: 413 });
 
           const result = await aiChat({
             system: `You are an expert QA engineer. Convert raw Playwright recordings into RESILIENT Testrify test specs.
@@ -36,8 +39,24 @@ Convert it to a resilient Testrify spec.`,
                     items: {
                       type: "object",
                       properties: {
-                        action: { type: "string", enum: ["goto", "click", "fill", "press", "wait", "expect_visible", "expect_text", "expect_url"] },
-                        target: { type: "string", description: "Resilient locator: 'role:button[name=Submit]', 'text:Sign in', 'label:Email', 'placeholder:Search', 'testid:cart-total', or URL for goto/expect_url" },
+                        action: {
+                          type: "string",
+                          enum: [
+                            "goto",
+                            "click",
+                            "fill",
+                            "press",
+                            "wait",
+                            "expect_visible",
+                            "expect_text",
+                            "expect_url",
+                          ],
+                        },
+                        target: {
+                          type: "string",
+                          description:
+                            "Resilient locator: 'role:button[name=Submit]', 'text:Sign in', 'label:Email', 'placeholder:Search', 'testid:cart-total', or URL for goto/expect_url",
+                        },
                         value: { type: "string" },
                         rationale: { type: "string", description: "Why this locator is resilient" },
                       },
@@ -55,7 +74,7 @@ Convert it to a resilient Testrify spec.`,
         } catch (e: any) {
           if (e instanceof Response) return e;
           console.error(e);
-          return json({ error: e?.message || "Failed" }, { status: 500 });
+          return json({ error: "Internal server error" }, { status: 500 });
         }
       },
     },

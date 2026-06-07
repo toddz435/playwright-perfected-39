@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isDue } from "@/lib/cron";
+import { validateFetchUrl } from "@/lib/url-validation.server";
 
 async function runTest(test: any, ownerId: string) {
   const t0 = Date.now();
@@ -14,6 +15,12 @@ async function runTest(test: any, ownerId: string) {
       const req = requests[i];
       const sStart = Date.now();
       try {
+        const urlCheck = validateFetchUrl(req.url);
+        if (!urlCheck.ok) {
+          stepResults.push({ idx: i, name: req.name, status: "failed", error: urlCheck.reason });
+          status = "failed";
+          break;
+        }
         const res = await fetch(req.url, {
           method: req.method,
           headers: req.headers || {},
@@ -117,8 +124,19 @@ async function runTest(test: any, ownerId: string) {
 export const Route = createFileRoute("/api/public/run-due-schedules")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
         try {
+          const cronSecret = process.env.CRON_SECRET;
+          if (cronSecret) {
+            const auth = request.headers.get("authorization") || "";
+            if (auth !== `Bearer ${cronSecret}`) {
+              return new Response(JSON.stringify({ error: "Unauthorized" }), {
+                status: 401,
+                headers: { "content-type": "application/json" },
+              });
+            }
+          }
+
           const now = new Date();
           const { data: schedules, error } = await supabaseAdmin
             .from("schedules")
@@ -151,7 +169,7 @@ export const Route = createFileRoute("/api/public/run-due-schedules")({
                 .eq("id", sched.id);
               results.push({ schedule: sched.id, status });
             } catch (e: any) {
-              results.push({ schedule: sched.id, error: e?.message });
+              results.push({ schedule: sched.id, error: "execution failed" });
             }
           }
           return new Response(
@@ -163,7 +181,7 @@ export const Route = createFileRoute("/api/public/run-due-schedules")({
           );
         } catch (e: any) {
           console.error(e);
-          return new Response(JSON.stringify({ error: e?.message || "Failed" }), { status: 500 });
+          return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
         }
       },
     },
