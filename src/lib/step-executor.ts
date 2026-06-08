@@ -16,7 +16,7 @@ export interface StepResult {
   action: string;
   target: string;
   value?: string;
-  status: "passed" | "failed" | "skipped" | "running";
+  status: "passed" | "failed" | "skipped" | "running" | "queued";
   duration_ms: number;
   error?: string;
   screenshot?: string; // base64 PNG

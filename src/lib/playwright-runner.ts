@@ -19,6 +19,12 @@ export interface BrowserRunOptions {
   navigationTimeout?: number;
   /** Run headless (default true) */
   headless?: boolean;
+  /**
+   * Called whenever a step changes state (queued → running → passed/failed/skipped).
+   * Receives a snapshot of the full step list so the caller can persist live progress.
+   * Awaited, so slow sinks (e.g. a DB write) naturally throttle execution.
+   */
+  onProgress?: (steps: StepResult[]) => void | Promise<void>;
 }
 
 export interface BrowserRunResult {
@@ -46,6 +52,7 @@ export async function runBrowserSteps(
     locatorTimeout = 5000,
     navigationTimeout = 30000,
     headless = true,
+    onProgress,
   } = options;
 
   let browser: Browser | undefined;
@@ -60,12 +67,30 @@ export async function runBrowserSteps(
     });
     page = await context.newPage();
 
-    const stepResults: StepResult[] = [];
     let status: "passed" | "failed" = "passed";
+
+    // Pre-seed the full step list so subscribers see every step up front.
+    // Steps before startIdx render as "skipped" (fast-forwarded), the rest "queued".
+    const stepResults: StepResult[] = steps.map((step, i) => ({
+      idx: i,
+      name: step.name,
+      action: step.action,
+      target: step.target,
+      value: step.value,
+      status: i < startIdx ? "skipped" : "queued",
+      duration_ms: 0,
+    }));
+    const emit = async () => {
+      if (onProgress) await onProgress(stepResults.map((s) => ({ ...s })));
+    };
+    await emit();
 
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       const isFastForward = i < startIdx;
+
+      stepResults[i] = { ...stepResults[i], status: "running" };
+      await emit();
 
       const stepOpts: ExecuteStepOptions = {
         screenshotOnFailure: isFastForward ? false : screenshotOnFailure,
@@ -76,13 +101,14 @@ export async function runBrowserSteps(
       };
 
       const result = await executeStep(page, step, i, stepOpts);
-      stepResults.push(result);
+      stepResults[i] = result;
+      await emit();
 
       if (result.status === "failed") {
         status = "failed";
         // Mark remaining steps as skipped
         for (let j = i + 1; j < steps.length; j++) {
-          stepResults.push({
+          stepResults[j] = {
             idx: j,
             name: steps[j].name,
             action: steps[j].action,
@@ -90,8 +116,9 @@ export async function runBrowserSteps(
             value: steps[j].value,
             status: "skipped",
             duration_ms: 0,
-          });
+          };
         }
+        await emit();
         break;
       }
     }
