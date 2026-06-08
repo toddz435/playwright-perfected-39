@@ -28,6 +28,9 @@ import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/pro
 import { Route as ApiProtectedAiGenerateApiSuiteRouteImport } from './routes/api/protected/ai-generate-api-suite'
 import { Route as ApiProtectedAiCodegenRouteImport } from './routes/api/protected/ai-codegen'
 import { Route as ApiProtectedAiAnalyzeFailureRouteImport } from './routes/api/protected/ai-analyze-failure'
+import { Route as ApiAgentReportRouteImport } from './routes/api/agent/report'
+import { Route as ApiAgentPollRouteImport } from './routes/api/agent/poll'
+import { Route as ApiAgentHeartbeatRouteImport } from './routes/api/agent/heartbeat'
 import { Route as AuthenticatedTestsTestIdRouteImport } from './routes/_authenticated/tests.$testId'
 
 const SignupRoute = SignupRouteImport.update({
@@ -129,6 +132,21 @@ const ApiProtectedAiAnalyzeFailureRoute =
     path: '/api/protected/ai-analyze-failure',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAgentReportRoute = ApiAgentReportRouteImport.update({
+  id: '/api/agent/report',
+  path: '/api/agent/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentPollRoute = ApiAgentPollRouteImport.update({
+  id: '/api/agent/poll',
+  path: '/api/agent/poll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentHeartbeatRoute = ApiAgentHeartbeatRouteImport.update({
+  id: '/api/agent/heartbeat',
+  path: '/api/agent/heartbeat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedTestsTestIdRoute =
   AuthenticatedTestsTestIdRouteImport.update({
     id: '/tests/$testId',
@@ -148,6 +166,9 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
+  '/api/agent/heartbeat': typeof ApiAgentHeartbeatRoute
+  '/api/agent/poll': typeof ApiAgentPollRoute
+  '/api/agent/report': typeof ApiAgentReportRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
   '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
@@ -169,6 +190,9 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
+  '/api/agent/heartbeat': typeof ApiAgentHeartbeatRoute
+  '/api/agent/poll': typeof ApiAgentPollRoute
+  '/api/agent/report': typeof ApiAgentReportRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
   '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
@@ -192,6 +216,9 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/schedules': typeof AuthenticatedSchedulesRoute
   '/_authenticated/tests/$testId': typeof AuthenticatedTestsTestIdRoute
+  '/api/agent/heartbeat': typeof ApiAgentHeartbeatRoute
+  '/api/agent/poll': typeof ApiAgentPollRoute
+  '/api/agent/report': typeof ApiAgentReportRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
   '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
@@ -215,6 +242,9 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/schedules'
     | '/tests/$testId'
+    | '/api/agent/heartbeat'
+    | '/api/agent/poll'
+    | '/api/agent/report'
     | '/api/protected/ai-analyze-failure'
     | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
@@ -236,6 +266,9 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/schedules'
     | '/tests/$testId'
+    | '/api/agent/heartbeat'
+    | '/api/agent/poll'
+    | '/api/agent/report'
     | '/api/protected/ai-analyze-failure'
     | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
@@ -258,6 +291,9 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/schedules'
     | '/_authenticated/tests/$testId'
+    | '/api/agent/heartbeat'
+    | '/api/agent/poll'
+    | '/api/agent/report'
     | '/api/protected/ai-analyze-failure'
     | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
@@ -275,6 +311,9 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  ApiAgentHeartbeatRoute: typeof ApiAgentHeartbeatRoute
+  ApiAgentPollRoute: typeof ApiAgentPollRoute
+  ApiAgentReportRoute: typeof ApiAgentReportRoute
   ApiProtectedAiAnalyzeFailureRoute: typeof ApiProtectedAiAnalyzeFailureRoute
   ApiProtectedAiCodegenRoute: typeof ApiProtectedAiCodegenRoute
   ApiProtectedAiGenerateApiSuiteRoute: typeof ApiProtectedAiGenerateApiSuiteRoute
@@ -420,6 +459,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedAiAnalyzeFailureRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/report': {
+      id: '/api/agent/report'
+      path: '/api/agent/report'
+      fullPath: '/api/agent/report'
+      preLoaderRoute: typeof ApiAgentReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent/poll': {
+      id: '/api/agent/poll'
+      path: '/api/agent/poll'
+      fullPath: '/api/agent/poll'
+      preLoaderRoute: typeof ApiAgentPollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent/heartbeat': {
+      id: '/api/agent/heartbeat'
+      path: '/api/agent/heartbeat'
+      fullPath: '/api/agent/heartbeat'
+      preLoaderRoute: typeof ApiAgentHeartbeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/tests/$testId': {
       id: '/_authenticated/tests/$testId'
       path: '/tests/$testId'
@@ -459,6 +519,9 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  ApiAgentHeartbeatRoute: ApiAgentHeartbeatRoute,
+  ApiAgentPollRoute: ApiAgentPollRoute,
+  ApiAgentReportRoute: ApiAgentReportRoute,
   ApiProtectedAiAnalyzeFailureRoute: ApiProtectedAiAnalyzeFailureRoute,
   ApiProtectedAiCodegenRoute: ApiProtectedAiCodegenRoute,
   ApiProtectedAiGenerateApiSuiteRoute: ApiProtectedAiGenerateApiSuiteRoute,

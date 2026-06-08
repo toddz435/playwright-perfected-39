@@ -1,0 +1,33 @@
+{
+  "name": "testrify-agent",
+  "version": "0.1.0",
+  "description": "Local Playwright test runner agent for Testrify — polls for work, executes browser tests with hot-restart, reports results.",
+  "type": "module",
+  "bin": {
+    "testrify-agent": "./dist/cli.mjs"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "tsx src/cli.ts"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "playwright",
+    "testing",
+    "automation",
+    "testrify",
+    "hot-restart"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.52.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}
