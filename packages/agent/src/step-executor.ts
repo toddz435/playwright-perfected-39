@@ -193,10 +193,7 @@ async function runAction(
         opts.locatorTimeout,
       );
       if (value) {
-        const { expect } = await import("playwright/test");
-        await expect(locator).toContainText(value, {
-          timeout: opts.locatorTimeout,
-        });
+        await assertContainsText(locator, value, opts.locatorTimeout);
       } else {
         await locator.waitFor({
           state: "visible",
@@ -229,24 +226,59 @@ async function runAction(
         step.fallbacks,
         opts.locatorTimeout,
       );
-      const { expect } = await import("playwright/test");
-      await expect(locator).toHaveValue(value || "", {
-        timeout: opts.locatorTimeout,
-      });
+      await assertHasValue(locator, value || "", opts.locatorTimeout);
       break;
     }
 
     case "expect_count": {
       const count = parseInt(value || "0", 10);
       const loc = resolveLocator(page, target);
-      const { expect } = await import("playwright/test");
-      await expect(loc).toHaveCount(count, { timeout: opts.locatorTimeout });
+      await assertHasCount(loc, count, opts.locatorTimeout);
       break;
     }
 
     default:
       throw new Error(`Unknown action: ${action}`);
   }
+}
+
+async function assertContainsText(locator: import("playwright").Locator, expected: string, timeout: number): Promise<void> {
+  const deadline = Date.now() + timeout;
+  let lastText = "";
+  while (Date.now() < deadline) {
+    try {
+      lastText = (await locator.textContent({ timeout: 1000 })) || "";
+      if (lastText.includes(expected)) return;
+    } catch { /* element may not exist yet */ }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`Expected text "${expected}" but got "${lastText.slice(0, 200)}"`);
+}
+
+async function assertHasValue(locator: import("playwright").Locator, expected: string, timeout: number): Promise<void> {
+  const deadline = Date.now() + timeout;
+  let lastValue = "";
+  while (Date.now() < deadline) {
+    try {
+      lastValue = await locator.inputValue({ timeout: 1000 });
+      if (lastValue === expected) return;
+    } catch { /* element may not exist yet */ }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`Expected value "${expected}" but got "${lastValue}"`);
+}
+
+async function assertHasCount(locator: import("playwright").Locator, expected: number, timeout: number): Promise<void> {
+  const deadline = Date.now() + timeout;
+  let lastCount = -1;
+  while (Date.now() < deadline) {
+    try {
+      lastCount = await locator.count();
+      if (lastCount === expected) return;
+    } catch { /* noop */ }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`Expected count ${expected} but got ${lastCount}`);
 }
 
 function isKeyName(s: string): boolean {
