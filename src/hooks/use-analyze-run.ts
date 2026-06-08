@@ -27,8 +27,9 @@ export function useAnalyzeRun() {
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed");
       setAnalysis(null);
+    } finally {
+      setAnalysisBusy(false);
     }
-    setAnalysisBusy(false);
   }, []);
 
   return { analysis, analysisBusy, analyzeRun };
