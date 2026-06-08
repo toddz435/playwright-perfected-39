@@ -86,8 +86,8 @@ function ApiTester() {
               <h2 className="font-semibold text-lg">{suite.name}</h2>
               <p className="text-sm text-muted-foreground">{suite.description}</p>
             </div>
-            <Button disabled={runningId === testId} onClick={runSuite} className="bg-gradient-primary border-0">
-              {runningId === testId ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running…</> : <><Play className="h-4 w-4 mr-2" /> Run suite</>}
+            <Button disabled={!!runningId && runningId === testId} onClick={runSuite} className="bg-gradient-primary border-0">
+              {runningId === testId && !!runningId ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running…</> : <><Play className="h-4 w-4 mr-2" /> Run suite</>}
             </Button>
           </div>
           <div className="space-y-3">
