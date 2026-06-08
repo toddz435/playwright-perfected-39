@@ -161,6 +161,11 @@ export const Route = createFileRoute("/api/protected/run-test")({
                 break;
               }
             }
+            // Fill any steps after an early failure as skipped (matches browser path)
+            // so the final write keeps the full step list and summary.total intact.
+            for (let k = stepResults.length; k < requests.length; k++) {
+              stepResults[k] = { idx: k, name: requests[k].name, status: "skipped", duration_ms: 0 };
+            }
           } else {
             // Browser: real Playwright execution with hot-restart support + live streaming.
             const steps = (test.spec?.steps || []) as any[];
