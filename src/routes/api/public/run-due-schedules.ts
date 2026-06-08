@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isDue } from "@/lib/cron";
+import { runBrowserSteps } from "@/lib/playwright-runner";
 
 async function runTest(test: any, ownerId: string) {
   const t0 = Date.now();
@@ -70,29 +71,14 @@ async function runTest(test: any, ownerId: string) {
       }
     }
   } else {
+    // Browser: real Playwright execution
     const steps = (test.spec?.steps || []) as any[];
-    for (let i = 0; i < steps.length; i++) {
-      const s = steps[i];
-      const fail = s.action?.startsWith("expect_") && Math.random() < 0.15;
-      if (fail) {
-        stepResults.push({
-          idx: i,
-          status: "failed",
-          action: s.action,
-          target: s.target,
-          error: `Assertion failed: ${s.action} '${s.target}'`,
-        });
-        status = "failed";
-        break;
-      }
-      stepResults.push({
-        idx: i,
-        status: "passed",
-        action: s.action,
-        target: s.target,
-        duration_ms: 80 + Math.floor(Math.random() * 220),
-      });
-    }
+    const result = await runBrowserSteps(steps, {
+      screenshotOnFailure: true,
+      headless: true,
+    });
+    status = result.status;
+    stepResults.push(...result.stepResults);
   }
 
   await supabaseAdmin.from("runs").insert({
