@@ -6,16 +6,7 @@
 // calls. Locally (`vite dev`) it runs directly. The import is dynamic so bundling the
 // Worker build never tries to pull Playwright in.
 
-// Canonical, engine-agnostic locator model. Codegen output, the engine, and the
-// healer all speak this. See docs/codegen-reliable-selectors.md.
-export type Locator =
-  | { by: "testid"; value: string }
-  | { by: "role"; role: string; name?: string }
-  | { by: "label"; value: string }
-  | { by: "placeholder"; value: string }
-  | { by: "text"; value: string }
-  | { by: "css"; value: string }
-  | { by: "xpath"; value: string };
+import { type Locator, locatorLabel } from "@/lib/locator";
 
 export type Step = {
   action: string;
@@ -48,30 +39,6 @@ export function resolveLocator(page: any, src: Locator | string): any {
       return page.locator(`xpath=${src.value}`);
     default:
       return page.locator(String((src as any).value ?? ""));
-  }
-}
-
-// A short human-readable label for a locator, used for result display and heal context.
-export function locatorLabel(src: Locator | string | undefined): string {
-  if (src == null) return "";
-  if (typeof src === "string") return src;
-  switch (src.by) {
-    case "testid":
-      return `testid=${src.value}`;
-    case "role":
-      return `role=${src.role}${src.name ? `[name="${src.name}"]` : ""}`;
-    case "label":
-      return `label=${src.value}`;
-    case "placeholder":
-      return `placeholder=${src.value}`;
-    case "text":
-      return `text=${src.value}`;
-    case "css":
-      return src.value;
-    case "xpath":
-      return `xpath=${src.value}`;
-    default:
-      return JSON.stringify(src);
   }
 }
 
