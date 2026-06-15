@@ -6,11 +6,74 @@
 // calls. Locally (`vite dev`) it runs directly. The import is dynamic so bundling the
 // Worker build never tries to pull Playwright in.
 
+// Canonical, engine-agnostic locator model. Codegen output, the engine, and the
+// healer all speak this. See docs/codegen-reliable-selectors.md.
+export type Locator =
+  | { by: "testid"; value: string }
+  | { by: "role"; role: string; name?: string }
+  | { by: "label"; value: string }
+  | { by: "placeholder"; value: string }
+  | { by: "text"; value: string }
+  | { by: "css"; value: string }
+  | { by: "xpath"; value: string };
+
 export type Step = {
   action: string;
+  // Legacy: a CSS string for selector actions, or a URL for goto/expect_url_contains.
   target?: string;
+  // Preferred for selector-based actions: a structured, resolvable locator.
+  locator?: Locator;
   value?: string;
 };
+
+// Resolves a locator (structured, or a legacy CSS/native-engine string) to a Playwright
+// Locator. A plain string flows through page.locator(), which accepts CSS plus native
+// engines like `text=`/`xpath=` — keeping pre-existing CSS tests and string heals working.
+export function resolveLocator(page: any, src: Locator | string): any {
+  if (typeof src === "string") return page.locator(src);
+  switch (src.by) {
+    case "testid":
+      return page.getByTestId(src.value);
+    case "role":
+      return page.getByRole(src.role as any, src.name ? { name: src.name } : undefined);
+    case "label":
+      return page.getByLabel(src.value);
+    case "placeholder":
+      return page.getByPlaceholder(src.value);
+    case "text":
+      return page.getByText(src.value);
+    case "css":
+      return page.locator(src.value);
+    case "xpath":
+      return page.locator(`xpath=${src.value}`);
+    default:
+      return page.locator(String((src as any).value ?? ""));
+  }
+}
+
+// A short human-readable label for a locator, used for result display and heal context.
+export function locatorLabel(src: Locator | string | undefined): string {
+  if (src == null) return "";
+  if (typeof src === "string") return src;
+  switch (src.by) {
+    case "testid":
+      return `testid=${src.value}`;
+    case "role":
+      return `role=${src.role}${src.name ? `[name="${src.name}"]` : ""}`;
+    case "label":
+      return `label=${src.value}`;
+    case "placeholder":
+      return `placeholder=${src.value}`;
+    case "text":
+      return `text=${src.value}`;
+    case "css":
+      return src.value;
+    case "xpath":
+      return `xpath=${src.value}`;
+    default:
+      return JSON.stringify(src);
+  }
+}
 
 export type StepStatus = "passed" | "failed" | "skipped" | "healed";
 
@@ -80,8 +143,8 @@ export async function runBrowserSteps(
 
   // Executes one selector-based action against a given selector. Throws LocatorError
   // when the element can't be found/interacted-with, AssertionError on value mismatch.
-  const execSelectorStep = async (action: string, selector: string, value?: string) => {
-    const locator = page.locator(selector);
+  const execSelectorStep = async (action: string, src: Locator | string, value?: string) => {
+    const locator = resolveLocator(page, src);
     switch (action) {
       case "click":
         try {
@@ -157,7 +220,7 @@ export async function runBrowserSteps(
           idx: i,
           status: "skipped",
           action: s.action,
-          target: s.target,
+          target: s.locator ? locatorLabel(s.locator) : s.target,
           value: s.value,
         });
         continue;
@@ -222,14 +285,18 @@ export async function runBrowserSteps(
       }
 
       // Selector-based actions, with auto-heal-and-continue on locator failure.
-      if (SELECTOR_ACTIONS.has(s.action) && s.target) {
+      // The locator source is the structured `locator` when present, else the legacy
+      // `target` string (CSS / native engine).
+      const locSource: Locator | string | undefined = s.locator ?? s.target;
+      if (SELECTOR_ACTIONS.has(s.action) && locSource != null) {
+        const label = locatorLabel(locSource);
         try {
-          await execSelectorStep(s.action, s.target, s.value);
+          await execSelectorStep(s.action, locSource, s.value);
           results.push({
             idx: i,
             status: "passed",
             action: s.action,
-            target: s.target,
+            target: label,
             value: s.value,
             duration_ms: Date.now() - sStart,
           });
@@ -241,7 +308,7 @@ export async function runBrowserSteps(
               idx: i,
               status: "failed",
               action: s.action,
-              target: s.target,
+              target: label,
               value: s.value,
               duration_ms: Date.now() - sStart,
               error: err.message,
@@ -254,9 +321,9 @@ export async function runBrowserSteps(
           if (opts.heal) {
             const html = await page.content().catch(() => "");
             const healed = await opts
-              .heal({ selector: s.target, action: s.action, value: s.value, html })
+              .heal({ selector: label, action: s.action, value: s.value, html })
               .catch(() => null);
-            if (healed && healed !== s.target) {
+            if (healed && healed !== label) {
               try {
                 await execSelectorStep(s.action, healed, s.value);
                 results.push({
@@ -266,7 +333,7 @@ export async function runBrowserSteps(
                   target: healed,
                   value: s.value,
                   duration_ms: Date.now() - sStart,
-                  healed_from: s.target,
+                  healed_from: label,
                   healed_to: healed,
                 });
                 continue; // healed → carry on with the rest of the script
@@ -275,7 +342,7 @@ export async function runBrowserSteps(
                   idx: i,
                   status: "failed",
                   action: s.action,
-                  target: s.target,
+                  target: label,
                   value: s.value,
                   duration_ms: Date.now() - sStart,
                   error: `heal retry failed (${healed}): ${retryErr?.message || retryErr}`,
@@ -290,7 +357,7 @@ export async function runBrowserSteps(
             idx: i,
             status: "failed",
             action: s.action,
-            target: s.target,
+            target: label,
             value: s.value,
             duration_ms: Date.now() - sStart,
             error: (err as Error).message,
