@@ -69,6 +69,22 @@ const DEMO_TESTS = [
     },
   },
   {
+    name: "Auto-heal demo — broken selector",
+    description: "The password field selector is deliberately broken. Run it to watch the engine auto-heal the locator and continue the rest of the script to a pass.",
+    type: "browser",
+    spec: {
+      name: "Auto-heal demo",
+      steps: [
+        { action: "goto", target: `${BASE}/login` },
+        { action: "fill", target: "input#username", value: "tomsmith" },
+        { action: "fill", target: "input#this-selector-is-intentionally-broken", value: "SuperSecretPassword!" },
+        { action: "click", target: "button[type=submit]" },
+        { action: "expect_text", target: "#flash", value: "You logged into a secure area!" },
+        { action: "expect_url_contains", target: "/secure" },
+      ],
+    },
+  },
+  {
     name: "API — ReqRes list users",
     description: "Hits the public ReqRes API and checks status + JSON shape.",
     type: "api",

@@ -101,7 +101,7 @@ function TestDetail() {
             <p className="text-muted-foreground text-sm mt-1">{test.description}</p>
           </div>
           <Button disabled={running} onClick={() => run()} className="bg-gradient-primary border-0 shadow-glow">
-            {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />} Run test
+            {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />} Run from start
           </Button>
         </div>
       </div>
@@ -152,7 +152,12 @@ function TestDetail() {
                 <div className="flex items-center gap-3">
                   {r.status === "passed" ? <CheckCircle2 className="h-5 w-5 text-success" /> : <XCircle className="h-5 w-5 text-destructive" />}
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium">{r.status === "passed" ? "Passed" : "Failed"} · {r.summary?.passed ?? 0}/{r.summary?.total ?? 0} steps</div>
+                    <div className="font-medium flex items-center gap-2">
+                      <span>{r.status === "passed" ? "Passed" : "Failed"} · {r.summary?.passed ?? 0}/{r.summary?.total ?? 0} steps</span>
+                      {(r.summary?.healed ?? 0) > 0 && (
+                        <Badge variant="outline" className="border-amber-500/40 text-amber-500 gap-1"><Wand2 className="h-3 w-3" /> {r.summary.healed} auto-healed</Badge>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">{r.duration_ms}ms · {new Date(r.created_at).toLocaleString()}</div>
                   </div>
                   {r.status === "failed" && (
@@ -169,10 +174,21 @@ function TestDetail() {
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1">
                   {(r.steps || []).map((s: any, i: number) => (
-                    <div key={i} title={`${s.action || s.name} ${s.target || ""}`}
-                      className={`h-1.5 flex-1 min-w-[8px] rounded-full ${s.status === "passed" ? "bg-success" : s.status === "failed" ? "bg-destructive" : s.status === "skipped" ? "bg-muted-foreground/30" : "bg-muted"}`} />
+                    <div key={i} title={`${s.action || s.name} ${s.target || ""}${s.status === "healed" ? ` (healed from ${s.healed_from})` : ""}`}
+                      className={`h-1.5 flex-1 min-w-[8px] rounded-full ${s.status === "passed" ? "bg-success" : s.status === "healed" ? "bg-amber-500" : s.status === "failed" ? "bg-destructive" : s.status === "skipped" ? "bg-muted-foreground/30" : "bg-muted"}`} />
                   ))}
                 </div>
+                {(r.steps || []).some((s: any) => s.status === "healed") && (
+                  <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+                    <div className="text-xs text-amber-500 mb-2 flex items-center gap-1"><Wand2 className="h-3 w-3" /> AUTO-HEALED & CONTINUED</div>
+                    {(r.steps || []).filter((s: any) => s.status === "healed").map((s: any) => (
+                      <div key={s.idx} className="font-mono text-xs mb-1">
+                        <span className="text-muted-foreground">step {s.idx + 1} ({s.action}):</span>{" "}
+                        <span className="text-muted-foreground line-through">{s.healed_from}</span> → <span className="text-success">{s.healed_to}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {analysis?.runId === r.id && (
                   <div className="mt-4 border-t border-border pt-4">
                     <div className="text-xs text-primary-glow mb-2 flex items-center gap-1"><Sparkles className="h-3 w-3" /> AI ROOT-CAUSE ANALYSIS</div>

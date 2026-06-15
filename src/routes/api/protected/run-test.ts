@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, json } from "@/lib/server-auth.server";
 import { createClient } from "@supabase/supabase-js";
+import { runBrowserSteps } from "@/lib/playwright-runner.server";
+import { healSelector } from "@/lib/heal.server";
 
 export const Route = createFileRoute("/api/protected/run-test")({
   server: {
@@ -70,29 +72,18 @@ export const Route = createFileRoute("/api/protected/run-test")({
               }
             }
           } else {
-            // Browser: simulated execution (real Playwright requires a worker runtime; this engine
-            // is wired so that swapping in a real cloud worker is a single backend swap)
+            // Browser: real Playwright execution (runs in-process on the Node server).
             const steps = (test.spec?.steps || []) as any[];
-            for (let i = 0; i < steps.length; i++) {
-              if (i < startIdx) { stepResults.push({ idx: i, status: "skipped", action: steps[i].action, target: steps[i].target }); continue; }
-              const s = steps[i];
-              await new Promise(r => setTimeout(r, 80 + Math.random() * 220));
-              // Simulate occasional failure on expect_text without a value
-              const fail = s.action?.startsWith("expect_") && Math.random() < 0.18;
-              if (fail) {
-                stepResults.push({ idx: i, status: "failed", action: s.action, target: s.target, value: s.value, duration_ms: 320,
-                  error: `Assertion failed: ${s.action} '${s.target}' did not match expected${s.value ? ` "${s.value}"` : ""}.` });
-                status = "failed"; break;
-              }
-              stepResults.push({ idx: i, status: "passed", action: s.action, target: s.target, value: s.value, duration_ms: 80 + Math.floor(Math.random() * 220) });
-            }
+            const result = await runBrowserSteps(steps, { startIdx, heal: healSelector });
+            stepResults.push(...result.steps);
+            if (result.status === "failed") status = "failed";
           }
 
           const finishedAt = new Date().toISOString();
           const duration = Date.now() - t0;
           const { data: run, error: rErr } = await sb.from("runs").insert({
             test_id: testId, owner_id: userId, status, started_at: startedAt, finished_at: finishedAt,
-            duration_ms: duration, steps: stepResults, summary: { type: test.type, total: stepResults.length, passed: stepResults.filter(s => s.status === "passed").length, failed: stepResults.filter(s => s.status === "failed").length },
+            duration_ms: duration, steps: stepResults, summary: { type: test.type, total: stepResults.length, passed: stepResults.filter(s => s.status === "passed").length, healed: stepResults.filter(s => s.status === "healed").length, failed: stepResults.filter(s => s.status === "failed").length },
           }).select().single();
           if (rErr) return json({ error: rErr.message }, { status: 500 });
           return json({ run });
