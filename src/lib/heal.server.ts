@@ -7,11 +7,25 @@ import type { HealFn } from "@/lib/playwright-runner.server";
 
 const MAX_HTML = 14000;
 
+// Strips likely-sensitive content from page HTML before it is sent to the external LLM:
+// drops <script>/<style> bodies (may inline tokens/data) and neutralizes user-entered
+// field values (input/option value attributes, textarea contents). Structure, labels,
+// roles, button text, and placeholders are preserved — the healer still needs those to
+// pick a locator. Conservative by design: it does not touch visible page text.
+export function redactHtml(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "<script></script>")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "<style></style>")
+    .replace(/(<(?:input|option)\b[^>]*?\bvalue=)("[^"]*"|'[^']*')/gi, '$1"[redacted]"')
+    .replace(/(<textarea\b[^>]*>)[\s\S]*?(<\/textarea>)/gi, "$1[redacted]$2");
+}
+
 export const healSelector: HealFn = async ({ selector, action, value, html }) => {
   if (!hasClaudeKey()) return null;
 
-  // Keep the prompt bounded; the relevant element is usually early-ish in the body.
-  const snippet = html.length > MAX_HTML ? html.slice(0, MAX_HTML) : html;
+  // Redact sensitive data BEFORE truncating/sending, then keep the prompt bounded.
+  const redacted = redactHtml(html);
+  const snippet = redacted.length > MAX_HTML ? redacted.slice(0, MAX_HTML) : redacted;
 
   try {
     const out = await claudeTool({

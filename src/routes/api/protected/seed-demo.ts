@@ -70,14 +70,19 @@ const DEMO_TESTS = [
   },
   {
     name: "Auto-heal demo — broken selector",
-    description: "The password field selector is deliberately broken. Run it to watch the engine auto-heal the locator and continue the rest of the script to a pass.",
+    description:
+      "The password field selector is deliberately broken. Run it to watch the engine auto-heal the locator and continue the rest of the script to a pass.",
     type: "browser",
     spec: {
       name: "Auto-heal demo",
       steps: [
         { action: "goto", target: `${BASE}/login` },
         { action: "fill", target: "input#username", value: "tomsmith" },
-        { action: "fill", target: "input#this-selector-is-intentionally-broken", value: "SuperSecretPassword!" },
+        {
+          action: "fill",
+          target: "input#this-selector-is-intentionally-broken",
+          value: "SuperSecretPassword!",
+        },
         { action: "click", target: "button[type=submit]" },
         { action: "expect_text", target: "#flash", value: "You logged into a secure area!" },
         { action: "expect_url_contains", target: "/secure" },
@@ -121,13 +126,19 @@ export const Route = createFileRoute("/api/protected/seed-demo")({
             auth: { persistSession: false, autoRefreshToken: false },
           });
 
-          const { data: project, error: pErr } = await sb.from("projects").insert({
-            owner_id: userId,
-            name: "Demo — The Internet",
-            base_url: BASE,
-            description: "Prebuilt tests against the-internet.herokuapp.com and ReqRes for instant playground.",
-          }).select().single();
-          if (pErr || !project) return json({ error: pErr?.message || "Could not create project" }, { status: 500 });
+          const { data: project, error: pErr } = await sb
+            .from("projects")
+            .insert({
+              owner_id: userId,
+              name: "Demo — The Internet",
+              base_url: BASE,
+              description:
+                "Prebuilt tests against the-internet.herokuapp.com and ReqRes for instant playground.",
+            })
+            .select()
+            .single();
+          if (pErr || !project)
+            return json({ error: pErr?.message || "Could not create project" }, { status: 500 });
 
           const rows = DEMO_TESTS.map((t) => ({
             project_id: project.id,
