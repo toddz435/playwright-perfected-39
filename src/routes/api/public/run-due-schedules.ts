@@ -1,12 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isDue } from "@/lib/cron";
+import { runBrowserSteps } from "@/lib/playwright-runner.server";
+import { healSelector } from "@/lib/heal.server";
+import { applyRecoveries } from "@/lib/recovery";
 
 async function runTest(test: any, ownerId: string) {
   const t0 = Date.now();
   const startedAt = new Date().toISOString();
   const stepResults: any[] = [];
   let status: "passed" | "failed" = "passed";
+  let stabilizedSteps: any[] | null = null;
 
   if (test.type === "api") {
     const requests = (test.spec?.requests || []) as any[];
@@ -70,29 +74,18 @@ async function runTest(test: any, ownerId: string) {
       }
     }
   } else {
+    // Browser: real Playwright execution (same engine as interactive runs). Runs on the
+    // Node server only, not the Cloudflare Worker. AI healing is on unless the test opts
+    // out via spec.aiHealing = false.
     const steps = (test.spec?.steps || []) as any[];
-    for (let i = 0; i < steps.length; i++) {
-      const s = steps[i];
-      const fail = s.action?.startsWith("expect_") && Math.random() < 0.15;
-      if (fail) {
-        stepResults.push({
-          idx: i,
-          status: "failed",
-          action: s.action,
-          target: s.target,
-          error: `Assertion failed: ${s.action} '${s.target}'`,
-        });
-        status = "failed";
-        break;
-      }
-      stepResults.push({
-        idx: i,
-        status: "passed",
-        action: s.action,
-        target: s.target,
-        duration_ms: 80 + Math.floor(Math.random() * 220),
-      });
-    }
+    const aiHealing = test.spec?.aiHealing !== false;
+    const result = await runBrowserSteps(steps, {
+      heal: aiHealing ? healSelector : undefined,
+    });
+    stepResults.push(...result.steps);
+    if (result.status === "failed") status = "failed";
+    const { steps: stabilized, changed } = applyRecoveries(steps, result.steps);
+    if (changed > 0) stabilizedSteps = stabilized;
   }
 
   await supabaseAdmin.from("runs").insert({
@@ -107,10 +100,23 @@ async function runTest(test: any, ownerId: string) {
       type: test.type,
       total: stepResults.length,
       passed: stepResults.filter((s) => s.status === "passed").length,
+      healed: stepResults.filter((s) => s.status === "healed").length,
       failed: stepResults.filter((s) => s.status === "failed").length,
       scheduled: true,
     },
   });
+
+  // Persist self-stabilized locators after the run is recorded (non-fatal).
+  if (stabilizedSteps) {
+    try {
+      await supabaseAdmin
+        .from("tests")
+        .update({ spec: { ...test.spec, steps: stabilizedSteps } })
+        .eq("id", test.id);
+    } catch (e: any) {
+      console.error("scheduled self-stabilize persist failed:", e?.message || e);
+    }
+  }
   return status;
 }
 
