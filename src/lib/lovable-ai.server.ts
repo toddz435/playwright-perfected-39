@@ -1,5 +1,13 @@
-// Server-only Lovable AI helper.
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+// Server-only AI helper. Originally targeted the Lovable AI Gateway (whose key is
+// injected only inside Lovable's cloud and hidden from local dev). Repointed to the
+// Anthropic Claude API, which uses ANTHROPIC_API_KEY — a key you create and can see at
+// https://console.anthropic.com. The signature is unchanged so all existing callers
+// (failure analysis, codegen, test generation, selector healing) work as-is.
+import { claudeTool, claudeText } from "@/lib/claude.server";
+
+// General app AI tasks (analysis/codegen) benefit from a stronger model than the
+// fast Haiku default used for selector healing.
+const APP_MODEL = "claude-sonnet-4-6";
 
 export async function aiChat(opts: {
   model?: string;
@@ -7,41 +15,18 @@ export async function aiChat(opts: {
   user: string;
   tool?: { name: string; description: string; parameters: any };
 }): Promise<any> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY missing");
-  const messages: any[] = [];
-  if (opts.system) messages.push({ role: "system", content: opts.system });
-  messages.push({ role: "user", content: opts.user });
-
-  const body: any = {
-    model: opts.model ?? "google/gemini-3-flash-preview",
-    messages,
-  };
   if (opts.tool) {
-    body.tools = [{ type: "function", function: opts.tool }];
-    body.tool_choice = { type: "function", function: { name: opts.tool.name } };
+    // Map the OpenAI-style {parameters} schema to Claude's {input_schema}.
+    return claudeTool({
+      model: APP_MODEL,
+      system: opts.system,
+      user: opts.user,
+      tool: {
+        name: opts.tool.name,
+        description: opts.tool.description,
+        input_schema: opts.tool.parameters,
+      },
+    });
   }
-
-  const res = await fetch(GATEWAY, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 429) throw new Error("AI rate limit hit — try again in a moment.");
-  if (res.status === 402) throw new Error("AI credits exhausted — add credits in Workspace > Usage.");
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`AI gateway error ${res.status}: ${txt.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  if (opts.tool) {
-    const call = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!call) throw new Error("AI did not return a tool call");
-    try { return JSON.parse(call.function.arguments); }
-    catch { throw new Error("AI returned malformed JSON"); }
-  }
-  return data.choices?.[0]?.message?.content ?? "";
+  return claudeText({ model: APP_MODEL, system: opts.system, user: opts.user });
 }

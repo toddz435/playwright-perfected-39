@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, json } from "@/lib/server-auth.server";
 import { createClient } from "@supabase/supabase-js";
+import { runBrowserSteps } from "@/lib/playwright-runner.server";
+import { healSelector } from "@/lib/heal.server";
+import { applyRecoveries } from "@/lib/recovery";
 
 export const Route = createFileRoute("/api/protected/run-test")({
   server: {
@@ -18,19 +21,27 @@ export const Route = createFileRoute("/api/protected/run-test")({
             auth: { persistSession: false, autoRefreshToken: false },
           });
 
-          const { data: test, error: tErr } = await sb.from("tests").select("*").eq("id", testId).single();
+          const { data: test, error: tErr } = await sb
+            .from("tests")
+            .select("*")
+            .eq("id", testId)
+            .single();
           if (tErr || !test) return json({ error: "Test not found" }, { status: 404 });
 
           const startedAt = new Date().toISOString();
           const t0 = Date.now();
           const stepResults: any[] = [];
           let status: "passed" | "failed" = "passed";
+          let stabilizedSteps: any[] | null = null;
           const startIdx = Math.max(0, Number(resumeFromStep) || 0);
 
           if (test.type === "api") {
             const requests = (test.spec?.requests || []) as any[];
             for (let i = 0; i < requests.length; i++) {
-              if (i < startIdx) { stepResults.push({ idx: i, status: "skipped", name: requests[i].name }); continue; }
+              if (i < startIdx) {
+                stepResults.push({ idx: i, status: "skipped", name: requests[i].name });
+                continue;
+              }
               const req = requests[i];
               const sStart = Date.now();
               try {
@@ -44,57 +55,119 @@ export const Route = createFileRoute("/api/protected/run-test")({
                 const text = await res.text();
                 const checks: any[] = [];
                 let stepOk = true;
-                for (const a of (req.assertions || [])) {
-                  let ok = false; let actual = "";
+                for (const a of req.assertions || []) {
+                  let ok = false;
+                  let actual = "";
                   try {
-                    if (a.kind === "status_eq") { ok = res.status === Number(a.expected); actual = String(res.status); }
-                    else if (a.kind === "status_lt") { ok = res.status < Number(a.expected); actual = String(res.status); }
-                    else if (a.kind === "time_lt_ms") { ok = elapsed < Number(a.expected); actual = `${elapsed}ms`; }
-                    else if (a.kind === "body_contains") { ok = text.includes(String(a.expected)); actual = ok ? "found" : "missing"; }
-                    else if (a.kind === "header_present") { ok = !!res.headers.get(String(a.expected)); actual = ok ? "present" : "absent"; }
-                    else if (a.kind === "json_path_eq") {
+                    if (a.kind === "status_eq") {
+                      ok = res.status === Number(a.expected);
+                      actual = String(res.status);
+                    } else if (a.kind === "status_lt") {
+                      ok = res.status < Number(a.expected);
+                      actual = String(res.status);
+                    } else if (a.kind === "time_lt_ms") {
+                      ok = elapsed < Number(a.expected);
+                      actual = `${elapsed}ms`;
+                    } else if (a.kind === "body_contains") {
+                      ok = text.includes(String(a.expected));
+                      actual = ok ? "found" : "missing";
+                    } else if (a.kind === "header_present") {
+                      ok = !!res.headers.get(String(a.expected));
+                      actual = ok ? "present" : "absent";
+                    } else if (a.kind === "json_path_eq") {
                       const [path, expected] = String(a.expected).split("::");
                       const j = JSON.parse(text);
                       const v = path.split(".").reduce((o: any, k: string) => o?.[k], j);
-                      ok = String(v) === expected; actual = String(v);
+                      ok = String(v) === expected;
+                      actual = String(v);
                     }
-                  } catch (e: any) { ok = false; actual = e?.message || "error"; }
+                  } catch (e: any) {
+                    ok = false;
+                    actual = e?.message || "error";
+                  }
                   if (!ok) stepOk = false;
                   checks.push({ ...a, ok, actual });
                 }
-                stepResults.push({ idx: i, name: req.name, status: stepOk ? "passed" : "failed", duration_ms: elapsed, http_status: res.status, checks });
-                if (!stepOk) { status = "failed"; break; }
+                stepResults.push({
+                  idx: i,
+                  name: req.name,
+                  status: stepOk ? "passed" : "failed",
+                  duration_ms: elapsed,
+                  http_status: res.status,
+                  checks,
+                });
+                if (!stepOk) {
+                  status = "failed";
+                  break;
+                }
               } catch (e: any) {
-                stepResults.push({ idx: i, name: req.name, status: "failed", error: e?.message || "Network error" });
-                status = "failed"; break;
+                stepResults.push({
+                  idx: i,
+                  name: req.name,
+                  status: "failed",
+                  error: e?.message || "Network error",
+                });
+                status = "failed";
+                break;
               }
             }
           } else {
-            // Browser: simulated execution (real Playwright requires a worker runtime; this engine
-            // is wired so that swapping in a real cloud worker is a single backend swap)
+            // Browser: real Playwright execution (runs in-process on the Node server).
+            // AI healing is on by default; it sends (redacted) page HTML to an external
+            // LLM on a locator failure. Disable per test by setting spec.aiHealing = false,
+            // in which case a broken locator simply fails the run as before.
             const steps = (test.spec?.steps || []) as any[];
-            for (let i = 0; i < steps.length; i++) {
-              if (i < startIdx) { stepResults.push({ idx: i, status: "skipped", action: steps[i].action, target: steps[i].target }); continue; }
-              const s = steps[i];
-              await new Promise(r => setTimeout(r, 80 + Math.random() * 220));
-              // Simulate occasional failure on expect_text without a value
-              const fail = s.action?.startsWith("expect_") && Math.random() < 0.18;
-              if (fail) {
-                stepResults.push({ idx: i, status: "failed", action: s.action, target: s.target, value: s.value, duration_ms: 320,
-                  error: `Assertion failed: ${s.action} '${s.target}' did not match expected${s.value ? ` "${s.value}"` : ""}.` });
-                status = "failed"; break;
-              }
-              stepResults.push({ idx: i, status: "passed", action: s.action, target: s.target, value: s.value, duration_ms: 80 + Math.floor(Math.random() * 220) });
-            }
+            const aiHealing = test.spec?.aiHealing !== false;
+            const result = await runBrowserSteps(steps, {
+              startIdx,
+              heal: aiHealing ? healSelector : undefined,
+            });
+            stepResults.push(...result.steps);
+            if (result.status === "failed") status = "failed";
+
+            // Phase D: stage recovered locators for persistence after the run is saved.
+            const { steps: stabilized, changed } = applyRecoveries(steps, result.steps);
+            if (changed > 0) stabilizedSteps = stabilized;
           }
 
           const finishedAt = new Date().toISOString();
           const duration = Date.now() - t0;
-          const { data: run, error: rErr } = await sb.from("runs").insert({
-            test_id: testId, owner_id: userId, status, started_at: startedAt, finished_at: finishedAt,
-            duration_ms: duration, steps: stepResults, summary: { type: test.type, total: stepResults.length, passed: stepResults.filter(s => s.status === "passed").length, failed: stepResults.filter(s => s.status === "failed").length },
-          }).select().single();
+          const { data: run, error: rErr } = await sb
+            .from("runs")
+            .insert({
+              test_id: testId,
+              owner_id: userId,
+              status,
+              started_at: startedAt,
+              finished_at: finishedAt,
+              duration_ms: duration,
+              steps: stepResults,
+              summary: {
+                type: test.type,
+                total: stepResults.length,
+                passed: stepResults.filter((s) => s.status === "passed").length,
+                healed: stepResults.filter((s) => s.status === "healed").length,
+                failed: stepResults.filter((s) => s.status === "failed").length,
+              },
+            })
+            .select()
+            .single();
           if (rErr) return json({ error: rErr.message }, { status: 500 });
+
+          // Persist self-stabilized locators AFTER the run is safely recorded, and never
+          // let a persistence failure lose the run (it just won't self-stabilize this time).
+          if (stabilizedSteps) {
+            try {
+              const { error: sErr } = await sb
+                .from("tests")
+                .update({ spec: { ...test.spec, steps: stabilizedSteps } })
+                .eq("id", testId);
+              if (sErr) console.error("self-stabilize persist failed:", sErr.message);
+            } catch (e: any) {
+              console.error("self-stabilize persist threw:", e?.message || e);
+            }
+          }
+
           return json({ run });
         } catch (e: any) {
           if (e instanceof Response) return e;

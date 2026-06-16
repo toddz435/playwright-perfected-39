@@ -12,4 +12,16 @@ export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
   },
+  // Playwright (used by the in-process browser test runner during local dev) ships native
+  // .node binaries and lazy requires that must not be bundled — keep them external so they
+  // load as real Node modules at runtime. NOTE: real browser execution only runs on the
+  // Node dev/preview server, not in the Cloudflare Worker build.
+  vite: {
+    ssr: {
+      external: ["@playwright/test", "playwright", "playwright-core"],
+    },
+    optimizeDeps: {
+      exclude: ["@playwright/test", "playwright", "playwright-core"],
+    },
+  },
 });

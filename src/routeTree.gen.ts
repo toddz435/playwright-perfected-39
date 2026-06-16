@@ -23,11 +23,13 @@ import { Route as AuthenticatedApiTesterRouteImport } from './routes/_authentica
 import { Route as ApiPublicRunDueSchedulesRouteImport } from './routes/api/public/run-due-schedules'
 import { Route as ApiProtectedSeedDemoRouteImport } from './routes/api/protected/seed-demo'
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
+import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protected/harden-test'
 import { Route as ApiProtectedAiHealSelectorRouteImport } from './routes/api/protected/ai-heal-selector'
 import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/protected/ai-generate-test'
 import { Route as ApiProtectedAiGenerateApiSuiteRouteImport } from './routes/api/protected/ai-generate-api-suite'
 import { Route as ApiProtectedAiCodegenRouteImport } from './routes/api/protected/ai-codegen'
 import { Route as ApiProtectedAiAnalyzeFailureRouteImport } from './routes/api/protected/ai-analyze-failure'
+import { Route as ApiProtectedAdviseLocatorsRouteImport } from './routes/api/protected/advise-locators'
 import { Route as AuthenticatedTestsTestIdRouteImport } from './routes/_authenticated/tests.$testId'
 
 const SignupRoute = SignupRouteImport.update({
@@ -100,6 +102,11 @@ const ApiProtectedRunTestRoute = ApiProtectedRunTestRouteImport.update({
   path: '/api/protected/run-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProtectedHardenTestRoute = ApiProtectedHardenTestRouteImport.update({
+  id: '/api/protected/harden-test',
+  path: '/api/protected/harden-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProtectedAiHealSelectorRoute =
   ApiProtectedAiHealSelectorRouteImport.update({
     id: '/api/protected/ai-heal-selector',
@@ -129,6 +136,12 @@ const ApiProtectedAiAnalyzeFailureRoute =
     path: '/api/protected/ai-analyze-failure',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedAdviseLocatorsRoute =
+  ApiProtectedAdviseLocatorsRouteImport.update({
+    id: '/api/protected/advise-locators',
+    path: '/api/protected/advise-locators',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedTestsTestIdRoute =
   AuthenticatedTestsTestIdRouteImport.update({
     id: '/tests/$testId',
@@ -148,11 +161,13 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
+  '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
   '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
+  '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
@@ -169,11 +184,13 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
+  '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
   '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
+  '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
@@ -192,11 +209,13 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/schedules': typeof AuthenticatedSchedulesRoute
   '/_authenticated/tests/$testId': typeof AuthenticatedTestsTestIdRoute
+  '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
   '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
+  '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
@@ -215,11 +234,13 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/schedules'
     | '/tests/$testId'
+    | '/api/protected/advise-locators'
     | '/api/protected/ai-analyze-failure'
     | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
+    | '/api/protected/harden-test'
     | '/api/protected/run-test'
     | '/api/protected/seed-demo'
     | '/api/public/run-due-schedules'
@@ -236,11 +257,13 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/schedules'
     | '/tests/$testId'
+    | '/api/protected/advise-locators'
     | '/api/protected/ai-analyze-failure'
     | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
+    | '/api/protected/harden-test'
     | '/api/protected/run-test'
     | '/api/protected/seed-demo'
     | '/api/public/run-due-schedules'
@@ -258,11 +281,13 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/schedules'
     | '/_authenticated/tests/$testId'
+    | '/api/protected/advise-locators'
     | '/api/protected/ai-analyze-failure'
     | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
+    | '/api/protected/harden-test'
     | '/api/protected/run-test'
     | '/api/protected/seed-demo'
     | '/api/public/run-due-schedules'
@@ -275,11 +300,13 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  ApiProtectedAdviseLocatorsRoute: typeof ApiProtectedAdviseLocatorsRoute
   ApiProtectedAiAnalyzeFailureRoute: typeof ApiProtectedAiAnalyzeFailureRoute
   ApiProtectedAiCodegenRoute: typeof ApiProtectedAiCodegenRoute
   ApiProtectedAiGenerateApiSuiteRoute: typeof ApiProtectedAiGenerateApiSuiteRoute
   ApiProtectedAiGenerateTestRoute: typeof ApiProtectedAiGenerateTestRoute
   ApiProtectedAiHealSelectorRoute: typeof ApiProtectedAiHealSelectorRoute
+  ApiProtectedHardenTestRoute: typeof ApiProtectedHardenTestRoute
   ApiProtectedRunTestRoute: typeof ApiProtectedRunTestRoute
   ApiProtectedSeedDemoRoute: typeof ApiProtectedSeedDemoRoute
   ApiPublicRunDueSchedulesRoute: typeof ApiPublicRunDueSchedulesRoute
@@ -385,6 +412,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedRunTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/harden-test': {
+      id: '/api/protected/harden-test'
+      path: '/api/protected/harden-test'
+      fullPath: '/api/protected/harden-test'
+      preLoaderRoute: typeof ApiProtectedHardenTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/ai-heal-selector': {
       id: '/api/protected/ai-heal-selector'
       path: '/api/protected/ai-heal-selector'
@@ -418,6 +452,13 @@ declare module '@tanstack/react-router' {
       path: '/api/protected/ai-analyze-failure'
       fullPath: '/api/protected/ai-analyze-failure'
       preLoaderRoute: typeof ApiProtectedAiAnalyzeFailureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/advise-locators': {
+      id: '/api/protected/advise-locators'
+      path: '/api/protected/advise-locators'
+      fullPath: '/api/protected/advise-locators'
+      preLoaderRoute: typeof ApiProtectedAdviseLocatorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/tests/$testId': {
@@ -459,11 +500,13 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  ApiProtectedAdviseLocatorsRoute: ApiProtectedAdviseLocatorsRoute,
   ApiProtectedAiAnalyzeFailureRoute: ApiProtectedAiAnalyzeFailureRoute,
   ApiProtectedAiCodegenRoute: ApiProtectedAiCodegenRoute,
   ApiProtectedAiGenerateApiSuiteRoute: ApiProtectedAiGenerateApiSuiteRoute,
   ApiProtectedAiGenerateTestRoute: ApiProtectedAiGenerateTestRoute,
   ApiProtectedAiHealSelectorRoute: ApiProtectedAiHealSelectorRoute,
+  ApiProtectedHardenTestRoute: ApiProtectedHardenTestRoute,
   ApiProtectedRunTestRoute: ApiProtectedRunTestRoute,
   ApiProtectedSeedDemoRoute: ApiProtectedSeedDemoRoute,
   ApiPublicRunDueSchedulesRoute: ApiPublicRunDueSchedulesRoute,
