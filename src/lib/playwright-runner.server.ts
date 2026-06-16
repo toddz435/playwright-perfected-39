@@ -14,6 +14,8 @@ export type Step = {
   target?: string;
   // Preferred for selector-based actions: a structured, resolvable locator.
   locator?: Locator;
+  // Ranked alternates tried (deterministically) before the LLM healer — see Phase D.
+  fallbacks?: Locator[];
   value?: string;
 };
 
