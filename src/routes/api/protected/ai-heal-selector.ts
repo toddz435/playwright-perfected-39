@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/protected/ai-heal-selector")({
           if (!selector) return json({ error: "selector required" }, { status: 400 });
 
           const result = await aiChat({
-            system: `You are a Playwright selector expert. Convert brittle CSS/XPath/dynamic-id selectors into resilient role/text/label/testid locators.`,
+            system: `You are a Playwright selector expert. Convert a brittle CSS/XPath/dynamic-id selector into a more resilient one. Return a selector that page.locator() can use DIRECTLY: either a stable CSS selector or a Playwright text= selector (e.g. "text=Sign in"). Prefer stable attributes (id, name, type, data-testid, aria-label). Do NOT use role:/text: prefixes.`,
             user: `Original selector (likely brittle):
 ${selector}
 
@@ -22,13 +22,21 @@ ${context || "(none)"}
 Return a resilient locator and explain why.`,
             tool: {
               name: "emit_healed_selector",
-              description: "Return a healed, resilient selector.",
+              description: "Return a healed selector usable by page.locator().",
               parameters: {
                 type: "object",
                 properties: {
-                  resilient: { type: "string", description: "New locator in the form 'role:button[name=Submit]' or 'text:Sign in'" },
+                  resilient: {
+                    type: "string",
+                    description:
+                      'A single selector usable by page.locator() — CSS or Playwright text= engine (e.g. "text=Sign in").',
+                  },
                   rationale: { type: "string" },
-                  fallbacks: { type: "array", items: { type: "string" }, description: "Up to 3 fallback locators" },
+                  fallbacks: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Up to 3 fallback selectors, same format",
+                  },
                 },
                 required: ["resilient", "rationale"],
                 additionalProperties: false,

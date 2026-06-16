@@ -3,22 +3,10 @@
 // selector that page.locator() can use. Returns null when healing isn't possible
 // (e.g. no API key configured) so the run simply fails as it would have.
 import { claudeTool, hasClaudeKey } from "@/lib/claude.server";
+import { redactHtml } from "@/lib/redact";
 import type { HealFn } from "@/lib/playwright-runner.server";
 
 const MAX_HTML = 14000;
-
-// Strips likely-sensitive content from page HTML before it is sent to the external LLM:
-// drops <script>/<style> bodies (may inline tokens/data) and neutralizes user-entered
-// field values (input/option value attributes, textarea contents). Structure, labels,
-// roles, button text, and placeholders are preserved — the healer still needs those to
-// pick a locator. Conservative by design: it does not touch visible page text.
-export function redactHtml(html: string): string {
-  return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "<script></script>")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "<style></style>")
-    .replace(/(<(?:input|option)\b[^>]*?\bvalue=)("[^"]*"|'[^']*')/gi, '$1"[redacted]"')
-    .replace(/(<textarea\b[^>]*>)[\s\S]*?(<\/textarea>)/gi, "$1[redacted]$2");
-}
 
 export const healSelector: HealFn = async ({ selector, action, value, html }) => {
   if (!hasClaudeKey()) return null;

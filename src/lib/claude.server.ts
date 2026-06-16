@@ -6,6 +6,24 @@ const ENDPOINT = "https://api.anthropic.com/v1/messages";
 // Fast + cheap, well-suited to short structured tasks like selector healing.
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 
+// Cap each request so a hung connection can't park a run (and pin an open browser).
+const REQUEST_TIMEOUT_MS = 30000;
+
+function describeFetchError(e: any): string {
+  return e?.name === "TimeoutError" || e?.name === "AbortError"
+    ? "Claude request timed out — try again."
+    : e?.message || "Claude request failed";
+}
+
+async function throwIfNotOk(res: Response): Promise<void> {
+  if (res.ok) return;
+  if (res.status === 429) throw new Error("Claude rate limit hit — try again in a moment.");
+  if (res.status === 402)
+    throw new Error("Claude credits exhausted — add credits to your Anthropic account.");
+  const txt = await res.text().catch(() => "");
+  throw new Error(`Claude API error ${res.status}: ${txt.slice(0, 300)}`);
+}
+
 export function hasClaudeKey(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
 }
@@ -21,28 +39,30 @@ export async function claudeTool(opts: {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY missing");
 
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: opts.model ?? DEFAULT_MODEL,
-      max_tokens: opts.maxTokens ?? 1024,
-      system: opts.system,
-      messages: [{ role: "user", content: opts.user }],
-      tools: [opts.tool],
-      tool_choice: { type: "tool", name: opts.tool.name },
-    }),
-  });
-
-  if (res.status === 429) throw new Error("Claude rate limit hit — try again in a moment.");
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Claude API error ${res.status}: ${txt.slice(0, 300)}`);
+  let res: Response;
+  try {
+    res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: opts.model ?? DEFAULT_MODEL,
+        max_tokens: opts.maxTokens ?? 1024,
+        system: opts.system,
+        messages: [{ role: "user", content: opts.user }],
+        tools: [opts.tool],
+        tool_choice: { type: "tool", name: opts.tool.name },
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (e: any) {
+    throw new Error(describeFetchError(e));
   }
+
+  await throwIfNotOk(res);
   const data = await res.json();
   const block = (data.content || []).find((b: any) => b.type === "tool_use");
   if (!block) throw new Error("Claude did not return a tool call");
@@ -59,26 +79,28 @@ export async function claudeText(opts: {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY missing");
 
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: opts.model ?? DEFAULT_MODEL,
-      max_tokens: opts.maxTokens ?? 2048,
-      system: opts.system,
-      messages: [{ role: "user", content: opts.user }],
-    }),
-  });
-
-  if (res.status === 429) throw new Error("Claude rate limit hit — try again in a moment.");
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Claude API error ${res.status}: ${txt.slice(0, 300)}`);
+  let res: Response;
+  try {
+    res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: opts.model ?? DEFAULT_MODEL,
+        max_tokens: opts.maxTokens ?? 2048,
+        system: opts.system,
+        messages: [{ role: "user", content: opts.user }],
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (e: any) {
+    throw new Error(describeFetchError(e));
   }
+
+  await throwIfNotOk(res);
   const data = await res.json();
   return (data.content || [])
     .filter((b: any) => b.type === "text")

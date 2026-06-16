@@ -96,7 +96,7 @@ function TestDetail() {
     setHealing(idx);
     try {
       const result = await apiCall<any>("/api/protected/ai-heal-selector", {
-        selector: step.target,
+        selector: step.locator ? locatorLabel(step.locator) : step.target,
         context: `Action: ${step.action}. Test: ${test.name}. ${step.value ? `Value: ${step.value}` : ""}`,
       });
       setHealed((h) => ({ ...h, [idx]: result }));
@@ -110,8 +110,10 @@ function TestDetail() {
     const result = healed[idx];
     if (!result) return;
     const newSpec = { ...test.spec };
+    // Write the healed selector as the legacy `target` string and clear any structured
+    // `locator`, since the runner resolves `locator ?? target` — otherwise the heal is ignored.
     newSpec.steps = newSpec.steps.map((s: any, i: number) =>
-      i === idx ? { ...s, target: result.resilient } : s,
+      i === idx ? { ...s, target: result.resilient, locator: undefined } : s,
     );
     const { error } = await supabase.from("tests").update({ spec: newSpec }).eq("id", testId);
     if (error) return toast.error(error.message);
@@ -391,8 +393,10 @@ function TestDetail() {
                     <Sparkles className="h-3 w-3" /> AI HEALED LOCATOR
                   </div>
                   <div className="font-mono text-xs mb-2">
-                    <span className="text-muted-foreground line-through">{s.target}</span> →{" "}
-                    <span className="text-success">{healed[i].resilient}</span>
+                    <span className="text-muted-foreground line-through">
+                      {s.locator ? locatorLabel(s.locator) : s.target}
+                    </span>{" "}
+                    → <span className="text-success">{healed[i].resilient}</span>
                   </div>
                   <div className="text-xs text-muted-foreground mb-2">{healed[i].rationale}</div>
                   {healed[i].fallbacks?.length > 0 && (

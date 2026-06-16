@@ -85,9 +85,10 @@ export type RunOptions = {
 class LocatorError extends Error {}
 class AssertionError extends Error {}
 
-const SELECTOR_ACTIONS = new Set([
+export const SELECTOR_ACTIONS = new Set([
   "click",
   "fill",
+  "press",
   "expect_text",
   "expect_visible",
   "expect_value",
@@ -132,6 +133,13 @@ export async function runBrowserSteps(
           throw new LocatorError(e?.message || "fill failed");
         }
         return;
+      case "press":
+        try {
+          await locator.first().press(value || "Enter", { timeout: stepTimeout });
+        } catch (e: any) {
+          throw new LocatorError(e?.message || "press failed");
+        }
+        return;
       case "expect_visible":
         try {
           await locator.first().waitFor({ state: "visible", timeout: stepTimeout });
@@ -167,6 +175,11 @@ export async function runBrowserSteps(
       }
       case "expect_count": {
         const expected = Number(value);
+        if (!Number.isFinite(expected)) {
+          throw new AssertionError(
+            `expect_count needs a numeric value, got ${JSON.stringify(value)}`,
+          );
+        }
         // Poll briefly so async-added elements settle.
         const deadline = Date.now() + stepTimeout;
         let count = await locator.count();
@@ -200,6 +213,27 @@ export async function runBrowserSteps(
 
       const sStart = Date.now();
 
+      // Legacy/no-op-ish action from older recordings: best-effort wait, never fatal.
+      if (s.action === "wait") {
+        const locSrc = s.locator ?? s.target;
+        if (locSrc != null) {
+          await resolveLocator(page, locSrc)
+            .first()
+            .waitFor({ state: "visible", timeout: stepTimeout })
+            .catch(() => {});
+        } else {
+          await page.waitForTimeout(Math.min(Number(s.value) || 500, stepTimeout));
+        }
+        results.push({
+          idx: i,
+          status: "passed",
+          action: s.action,
+          target: s.locator ? locatorLabel(s.locator) : s.target,
+          duration_ms: Date.now() - sStart,
+        });
+        continue;
+      }
+
       // Non-selector actions: navigation and URL assertions (not healable).
       if (s.action === "goto") {
         try {
@@ -226,7 +260,7 @@ export async function runBrowserSteps(
         continue;
       }
 
-      if (s.action === "expect_url_contains") {
+      if (s.action === "expect_url_contains" || s.action === "expect_url") {
         const deadline = Date.now() + stepTimeout;
         let url = page.url();
         while (!url.includes(s.target ?? "") && Date.now() < deadline) {

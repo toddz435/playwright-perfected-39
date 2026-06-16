@@ -32,6 +32,7 @@ export const Route = createFileRoute("/api/protected/run-test")({
           const t0 = Date.now();
           const stepResults: any[] = [];
           let status: "passed" | "failed" = "passed";
+          let stabilizedSteps: any[] | null = null;
           const startIdx = Math.max(0, Number(resumeFromStep) || 0);
 
           if (test.type === "api") {
@@ -124,15 +125,9 @@ export const Route = createFileRoute("/api/protected/run-test")({
             stepResults.push(...result.steps);
             if (result.status === "failed") status = "failed";
 
-            // Phase D: persist any recovered locators so the test self-stabilizes — next
-            // run uses the working locator directly instead of re-healing.
+            // Phase D: stage recovered locators for persistence after the run is saved.
             const { steps: stabilized, changed } = applyRecoveries(steps, result.steps);
-            if (changed > 0) {
-              await sb
-                .from("tests")
-                .update({ spec: { ...test.spec, steps: stabilized } })
-                .eq("id", testId);
-            }
+            if (changed > 0) stabilizedSteps = stabilized;
           }
 
           const finishedAt = new Date().toISOString();
@@ -158,6 +153,21 @@ export const Route = createFileRoute("/api/protected/run-test")({
             .select()
             .single();
           if (rErr) return json({ error: rErr.message }, { status: 500 });
+
+          // Persist self-stabilized locators AFTER the run is safely recorded, and never
+          // let a persistence failure lose the run (it just won't self-stabilize this time).
+          if (stabilizedSteps) {
+            try {
+              const { error: sErr } = await sb
+                .from("tests")
+                .update({ spec: { ...test.spec, steps: stabilizedSteps } })
+                .eq("id", testId);
+              if (sErr) console.error("self-stabilize persist failed:", sErr.message);
+            } catch (e: any) {
+              console.error("self-stabilize persist threw:", e?.message || e);
+            }
+          }
+
           return json({ run });
         } catch (e: any) {
           if (e instanceof Response) return e;

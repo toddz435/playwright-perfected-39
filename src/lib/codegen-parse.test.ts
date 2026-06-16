@@ -68,6 +68,22 @@ describe("extractLocator", () => {
   it("returns null when no locator is present", () => {
     expect(extractLocator("page.waitForLoadState()")).toBeNull();
   });
+
+  it("binds to the LAST locator in a chain (the target, not the container)", () => {
+    expect(
+      extractLocator(
+        "page.getByRole('row', { name: 'Order 1' }).getByRole('button', { name: 'Delete' }).click()",
+      ),
+    ).toEqual({ by: "role", role: "button", name: "Delete" });
+  });
+
+  it("reduces a regex role name with metacharacters to a usable literal substring", () => {
+    expect(extractLocator("page.getByRole('button', { name: /Save.*/i }).click()")).toEqual({
+      by: "role",
+      role: "button",
+      name: "Save",
+    });
+  });
 });
 
 describe("parseCodegen", () => {
