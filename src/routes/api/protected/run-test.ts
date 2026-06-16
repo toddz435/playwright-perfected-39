@@ -3,6 +3,7 @@ import { requireUser, json } from "@/lib/server-auth.server";
 import { createClient } from "@supabase/supabase-js";
 import { runBrowserSteps } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
+import { applyRecoveries } from "@/lib/recovery";
 
 export const Route = createFileRoute("/api/protected/run-test")({
   server: {
@@ -122,6 +123,16 @@ export const Route = createFileRoute("/api/protected/run-test")({
             });
             stepResults.push(...result.steps);
             if (result.status === "failed") status = "failed";
+
+            // Phase D: persist any recovered locators so the test self-stabilizes — next
+            // run uses the working locator directly instead of re-healing.
+            const { steps: stabilized, changed } = applyRecoveries(steps, result.steps);
+            if (changed > 0) {
+              await sb
+                .from("tests")
+                .update({ spec: { ...test.spec, steps: stabilized } })
+                .eq("id", testId);
+            }
           }
 
           const finishedAt = new Date().toISOString();

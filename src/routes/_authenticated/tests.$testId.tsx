@@ -498,6 +498,12 @@ function TestDetail() {
                             {s.healed_from}
                           </span>{" "}
                           → <span className="text-success">{s.healed_to}</span>
+                          {s.recovery && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              · {s.recovery === "fallback" ? "via fallback" : "AI"}
+                            </span>
+                          )}
                         </div>
                       ))}
                   </div>

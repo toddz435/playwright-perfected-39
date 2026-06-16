@@ -57,6 +57,9 @@ export type StepResult = {
   // Present when the step's locator was auto-healed before it passed:
   healed_from?: string;
   healed_to?: string;
+  // How a healed step recovered, and the locator that worked (for persistence — Phase D).
+  recovery?: "fallback" | "ai";
+  new_locator?: Locator | string;
 };
 
 // Called when a selector-based step fails to locate its element. Returns a replacement
@@ -286,7 +289,32 @@ export async function runBrowserSteps(
             break;
           }
 
-          // Locator failure — attempt to heal, then continue from this step.
+          // Phase D: try stored fallbacks first (deterministic, no LLM cost).
+          let recoveredViaFallback = false;
+          for (const fb of s.fallbacks ?? []) {
+            try {
+              await execSelectorStep(s.action, fb, s.value);
+              results.push({
+                idx: i,
+                status: "healed",
+                action: s.action,
+                target: locatorLabel(fb),
+                value: s.value,
+                duration_ms: Date.now() - sStart,
+                healed_from: label,
+                healed_to: locatorLabel(fb),
+                recovery: "fallback",
+                new_locator: fb,
+              });
+              recoveredViaFallback = true;
+              break;
+            } catch {
+              /* fallback didn't work — try the next one */
+            }
+          }
+          if (recoveredViaFallback) continue;
+
+          // Locator failure — attempt to heal with the LLM, then continue from this step.
           if (opts.heal) {
             const html = await page.content().catch(() => "");
             const healed = await opts
@@ -304,6 +332,8 @@ export async function runBrowserSteps(
                   duration_ms: Date.now() - sStart,
                   healed_from: label,
                   healed_to: healed,
+                  recovery: "ai",
+                  new_locator: healed,
                 });
                 continue; // healed → carry on with the rest of the script
               } catch (retryErr: any) {
