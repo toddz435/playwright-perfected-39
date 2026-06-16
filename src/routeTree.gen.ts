@@ -29,6 +29,7 @@ import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/pro
 import { Route as ApiProtectedAiGenerateApiSuiteRouteImport } from './routes/api/protected/ai-generate-api-suite'
 import { Route as ApiProtectedAiCodegenRouteImport } from './routes/api/protected/ai-codegen'
 import { Route as ApiProtectedAiAnalyzeFailureRouteImport } from './routes/api/protected/ai-analyze-failure'
+import { Route as ApiProtectedAdviseLocatorsRouteImport } from './routes/api/protected/advise-locators'
 import { Route as AuthenticatedTestsTestIdRouteImport } from './routes/_authenticated/tests.$testId'
 
 const SignupRoute = SignupRouteImport.update({
@@ -135,6 +136,12 @@ const ApiProtectedAiAnalyzeFailureRoute =
     path: '/api/protected/ai-analyze-failure',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedAdviseLocatorsRoute =
+  ApiProtectedAdviseLocatorsRouteImport.update({
+    id: '/api/protected/advise-locators',
+    path: '/api/protected/advise-locators',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedTestsTestIdRoute =
   AuthenticatedTestsTestIdRouteImport.update({
     id: '/tests/$testId',
@@ -154,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
+  '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
   '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
@@ -176,6 +184,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
+  '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
   '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
@@ -200,6 +209,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/schedules': typeof AuthenticatedSchedulesRoute
   '/_authenticated/tests/$testId': typeof AuthenticatedTestsTestIdRoute
+  '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
   '/api/protected/ai-analyze-failure': typeof ApiProtectedAiAnalyzeFailureRoute
   '/api/protected/ai-codegen': typeof ApiProtectedAiCodegenRoute
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
@@ -224,6 +234,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/schedules'
     | '/tests/$testId'
+    | '/api/protected/advise-locators'
     | '/api/protected/ai-analyze-failure'
     | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/schedules'
     | '/tests/$testId'
+    | '/api/protected/advise-locators'
     | '/api/protected/ai-analyze-failure'
     | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
@@ -269,6 +281,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/schedules'
     | '/_authenticated/tests/$testId'
+    | '/api/protected/advise-locators'
     | '/api/protected/ai-analyze-failure'
     | '/api/protected/ai-codegen'
     | '/api/protected/ai-generate-api-suite'
@@ -287,6 +300,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  ApiProtectedAdviseLocatorsRoute: typeof ApiProtectedAdviseLocatorsRoute
   ApiProtectedAiAnalyzeFailureRoute: typeof ApiProtectedAiAnalyzeFailureRoute
   ApiProtectedAiCodegenRoute: typeof ApiProtectedAiCodegenRoute
   ApiProtectedAiGenerateApiSuiteRoute: typeof ApiProtectedAiGenerateApiSuiteRoute
@@ -440,6 +454,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedAiAnalyzeFailureRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/advise-locators': {
+      id: '/api/protected/advise-locators'
+      path: '/api/protected/advise-locators'
+      fullPath: '/api/protected/advise-locators'
+      preLoaderRoute: typeof ApiProtectedAdviseLocatorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/tests/$testId': {
       id: '/_authenticated/tests/$testId'
       path: '/tests/$testId'
@@ -479,6 +500,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  ApiProtectedAdviseLocatorsRoute: ApiProtectedAdviseLocatorsRoute,
   ApiProtectedAiAnalyzeFailureRoute: ApiProtectedAiAnalyzeFailureRoute,
   ApiProtectedAiCodegenRoute: ApiProtectedAiCodegenRoute,
   ApiProtectedAiGenerateApiSuiteRoute: ApiProtectedAiGenerateApiSuiteRoute,

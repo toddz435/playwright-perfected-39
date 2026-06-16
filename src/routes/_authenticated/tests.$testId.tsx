@@ -17,6 +17,7 @@ import {
   XCircle,
   Wand2,
   ShieldCheck,
+  Lightbulb,
   ChevronRight,
   Clock,
 } from "lucide-react";
@@ -39,6 +40,8 @@ function TestDetail() {
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [hardening, setHardening] = useState(false);
   const [hardenReport, setHardenReport] = useState<any[] | null>(null);
+  const [advising, setAdvising] = useState(false);
+  const [advisories, setAdvisories] = useState<any[] | null>(null);
 
   const refresh = async () => {
     const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
@@ -120,6 +123,23 @@ function TestDetail() {
     refresh();
   };
 
+  const adviseLocators = async () => {
+    setAdvising(true);
+    setAdvisories(null);
+    try {
+      const { advisories } = await apiCall<any>("/api/protected/advise-locators", { testId });
+      setAdvisories(advisories);
+      toast.success(
+        advisories.length === 0
+          ? "No brittle locators — every element has a stable handle 🎉"
+          : `${advisories.length} element${advisories.length === 1 ? "" : "s"} could use a data-testid`,
+      );
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setAdvising(false);
+  };
+
   const hardenLocators = async () => {
     setHardening(true);
     setHardenReport(null);
@@ -197,6 +217,21 @@ function TestDetail() {
                 Harden locators
               </Button>
             )}
+            {test.type === "browser" && (
+              <Button
+                variant="outline"
+                disabled={advising || running}
+                onClick={adviseLocators}
+                title="Find elements with no stable handle and get data-testid suggestions for your developers to add to the app."
+              >
+                {advising ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Lightbulb className="h-4 w-4 mr-1" />
+                )}{" "}
+                data-testid advice
+              </Button>
+            )}
             <Button
               disabled={running}
               onClick={() => run()}
@@ -260,6 +295,54 @@ function TestDetail() {
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* data-testid advice (developer-facing) */}
+      {advisories && (
+        <section className="glass rounded-2xl p-6 shadow-card">
+          <h2 className="font-semibold mb-1 flex items-center gap-2">
+            <Lightbulb className="h-4 w-4 text-amber-500" /> data-testid advice
+          </h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Add these stable handles in your app's DOM so locators stop being brittle for everyone.
+            Testrify sees the rendered page, so it points at the element — your devs place the
+            attribute in source.
+          </p>
+          {advisories.length === 0 ? (
+            <div className="text-sm text-success">
+              Every element your test touches already has a stable handle. Nothing to do. 🎉
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {advisories.map((a: any) => (
+                <div
+                  key={a.idx}
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3"
+                >
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-xs text-muted-foreground w-6">{a.idx + 1}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {a.action}
+                    </Badge>
+                    <span className="text-muted-foreground text-xs">{a.reason}</span>
+                  </div>
+                  <div className="mt-2 ml-8 space-y-1 text-xs">
+                    <div className="text-muted-foreground">
+                      where: <span className="font-mono">{a.domPath}</span>
+                    </div>
+                    <pre className="font-mono text-[11px] bg-surface/60 border border-border rounded p-2 overflow-x-auto whitespace-pre-wrap">
+                      {a.elementHtml}
+                    </pre>
+                    <div className="font-mono">
+                      add <span className="text-success">data-testid="{a.suggestedTestId}"</span> →
+                      then <span className="text-primary-glow">{a.suggestedLocator}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
