@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { locatorLabel } from "@/lib/locator";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -15,6 +16,7 @@ import {
   CheckCircle2,
   XCircle,
   Wand2,
+  ShieldCheck,
   ChevronRight,
   Clock,
 } from "lucide-react";
@@ -35,6 +37,8 @@ function TestDetail() {
   const [healed, setHealed] = useState<Record<number, any>>({});
   const [analysis, setAnalysis] = useState<{ runId: string; text: string } | null>(null);
   const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [hardening, setHardening] = useState(false);
+  const [hardenReport, setHardenReport] = useState<any[] | null>(null);
 
   const refresh = async () => {
     const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
@@ -116,6 +120,21 @@ function TestDetail() {
     refresh();
   };
 
+  const hardenLocators = async () => {
+    setHardening(true);
+    setHardenReport(null);
+    try {
+      const { report } = await apiCall<any>("/api/protected/harden-test", { testId });
+      setHardenReport(report);
+      const improved = (report || []).filter((r: any) => r.status === "improved").length;
+      toast.success(`Hardened ${improved} locator${improved === 1 ? "" : "s"}`);
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setHardening(false);
+  };
+
   const toggleHealing = async (on: boolean) => {
     const newSpec = { ...test.spec, aiHealing: on };
     const { error } = await supabase.from("tests").update({ spec: newSpec }).eq("id", testId);
@@ -163,6 +182,21 @@ function TestDetail() {
                 <Switch checked={test.spec?.aiHealing !== false} onCheckedChange={toggleHealing} />
               </label>
             )}
+            {test.type === "browser" && (
+              <Button
+                variant="outline"
+                disabled={hardening || running}
+                onClick={hardenLocators}
+                title="Run the test against the live page and replace each locator with a validated, resilient one (+ fallbacks)."
+              >
+                {hardening ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4 mr-1" />
+                )}{" "}
+                Harden locators
+              </Button>
+            )}
             <Button
               disabled={running}
               onClick={() => run()}
@@ -179,6 +213,56 @@ function TestDetail() {
         </div>
       </div>
 
+      {/* Locator hardening report */}
+      {hardenReport && (
+        <section className="glass rounded-2xl p-6 shadow-card">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-success" /> Locator hardening
+          </h2>
+          <div className="space-y-2">
+            {hardenReport.map((r: any) => (
+              <div
+                key={r.idx}
+                className="rounded-lg border border-border bg-surface/40 p-3 text-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-6">{r.idx + 1}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {r.action}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={`text-xs ${
+                      r.status === "improved"
+                        ? "border-success/40 text-success"
+                        : r.status === "unresolved"
+                          ? "border-destructive/40 text-destructive"
+                          : "border-border text-muted-foreground"
+                    }`}
+                  >
+                    {r.status}
+                  </Badge>
+                </div>
+                <div className="font-mono text-xs mt-2 ml-8">
+                  <span className="text-muted-foreground line-through">{r.original}</span>
+                  {r.hardened && r.status === "improved" && (
+                    <>
+                      {" → "}
+                      <span className="text-success">{r.hardened}</span>
+                    </>
+                  )}
+                </div>
+                {r.fallbacks?.length > 0 && (
+                  <div className="font-mono text-[11px] mt-1 ml-8 text-muted-foreground">
+                    fallbacks: {r.fallbacks.join("  |  ")}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Steps with inline healing */}
       <section className="glass rounded-2xl p-6 shadow-card">
         <h2 className="font-semibold mb-4 flex items-center gap-2">
@@ -192,7 +276,9 @@ function TestDetail() {
                 <Badge variant="secondary" className="text-xs">
                   {isApi ? s.method : s.action}
                 </Badge>
-                <span className="flex-1 truncate">{isApi ? s.url : s.target}</span>
+                <span className="flex-1 truncate">
+                  {isApi ? s.url : s.locator ? locatorLabel(s.locator) : s.target}
+                </span>
                 {!isApi && s.value && (
                   <span className="text-xs text-muted-foreground">"{s.value}"</span>
                 )}
