@@ -28,6 +28,7 @@ import {
   Brain,
   Wand2,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -88,6 +89,28 @@ function Dashboard() {
       toast.error(e.message);
     }
     setHardenBusy(false);
+  };
+
+  const deleteProject = async () => {
+    if (!activeProject) return;
+    const proj = projects.find((p) => p.id === activeProject);
+    if (
+      !window.confirm(
+        `Delete project "${proj?.name ?? ""}" and ALL its tests and runs? This cannot be undone.`,
+      )
+    )
+      return;
+    const testIds = tests.filter((t) => t.project_id === activeProject).map((t) => t.id);
+    // schedules have no FK to tests, so remove them explicitly; tests+runs cascade.
+    if (testIds.length) await supabase.from("schedules").delete().in("test_id", testIds);
+    const { error } = await supabase.from("projects").delete().eq("id", activeProject);
+    if (error) return toast.error(error.message);
+    toast.success("Project deleted");
+    // Reselect a surviving project (refresh()'s own reselect guard sees the stale
+    // pre-delete activeProject in its closure, so do it explicitly here).
+    const next = projects.find((p) => p.id !== activeProject) ?? null;
+    setActiveProject(next?.id ?? null);
+    refresh();
   };
 
   const refresh = async () => {
@@ -238,6 +261,16 @@ function Dashboard() {
                 <ShieldCheck className="h-4 w-4 mr-1" />
               )}
               Harden all
+            </Button>
+          )}
+          {activeProject && (
+            <Button
+              variant="outline"
+              onClick={deleteProject}
+              title="Delete this project and all its tests and runs."
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-1" /> Delete project
             </Button>
           )}
           <Button variant="outline" disabled={seedBusy} onClick={seedDemo}>

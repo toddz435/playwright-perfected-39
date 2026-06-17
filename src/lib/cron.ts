@@ -5,8 +5,15 @@ export function matches(field: string, value: number): boolean {
     const stepMatch = part.match(/^(\*|\d+(-\d+)?)\/(\d+)$/);
     if (stepMatch) {
       const step = parseInt(stepMatch[3], 10);
-      const base = stepMatch[1] === "*" ? 0 : parseInt(stepMatch[1].split("-")[0], 10);
-      if ((value - base) % step === 0 && value >= base) return true;
+      const rangePart = stepMatch[1];
+      let base = 0;
+      let end = Infinity; // "A/N" and "*/N" have no upper bound; "A-B/N" does.
+      if (rangePart !== "*") {
+        const [a, b] = rangePart.split("-");
+        base = parseInt(a, 10);
+        if (b !== undefined) end = parseInt(b, 10);
+      }
+      if (value >= base && value <= end && (value - base) % step === 0) return true;
       continue;
     }
     if (part.includes("-")) {
@@ -17,6 +24,26 @@ export function matches(field: string, value: number): boolean {
     if (parseInt(part, 10) === value) return true;
   }
   return false;
+}
+
+// Builds a 5-field UTC cron from a LOCAL 24h time + chosen weekdays. isDue() evaluates in
+// UTC, so we convert here. offsetMin is Date.prototype.getTimezoneOffset() (minutes to ADD
+// to local to reach UTC; e.g. UTC-5 → +300). days are local weekday numbers (0=Sun..6=Sat);
+// an empty list means every day. Day-rollover from the conversion shifts the weekdays too.
+export function buildCronFromLocal(timeHHMM: string, days: number[], offsetMin: number): string {
+  const [h, m] = timeHHMM.split(":").map((n) => parseInt(n, 10));
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59)
+    return "0 9 * * *";
+  const utcTotal = h * 60 + m + offsetMin;
+  const dayShift = Math.floor(utcTotal / 1440); // -1, 0, or +1
+  const utcMin = ((utcTotal % 1440) + 1440) % 1440;
+  const HH = Math.floor(utcMin / 60);
+  const MM = utcMin % 60;
+  if (!days.length) return `${MM} ${HH} * * *`;
+  const utcDays = [...new Set(days.map((d) => (((d + dayShift) % 7) + 7) % 7))].sort(
+    (a, b) => a - b,
+  );
+  return `${MM} ${HH} * * ${utcDays.join(",")}`;
 }
 
 export function isDue(cron: string, now: Date): boolean {
