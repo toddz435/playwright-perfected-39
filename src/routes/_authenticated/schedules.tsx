@@ -32,14 +32,25 @@ function Schedules() {
   const [cron, setCron] = useState("0 9 * * *");
   const [timeLocal, setTimeLocal] = useState("09:00"); // 24h local time
   const [days, setDays] = useState<number[]>([]); // local weekdays; [] = every day
+  // True once the user hand-edits the cron (Advanced box or a preset). While dirty, the
+  // picker stops overwriting cron, and the summary shows "custom" instead of lying.
+  const [cronDirty, setCronDirty] = useState(false);
 
-  // Rebuild the (UTC) cron from the local time + chosen days. Runs client-side so the
-  // timezone offset is the user's, not the SSR server's.
+  // Rebuild the (UTC) cron from the local time + chosen days, unless the user has taken
+  // manual control. Runs client-side so the timezone offset is the user's, not the SSR
+  // server's.
   useEffect(() => {
-    setCron(buildCronFromLocal(timeLocal, days, new Date().getTimezoneOffset()));
-  }, [timeLocal, days]);
-  const toggleDay = (d: number) =>
+    if (!cronDirty) setCron(buildCronFromLocal(timeLocal, days, new Date().getTimezoneOffset()));
+  }, [timeLocal, days, cronDirty]);
+  // Using the picker re-asserts picker control.
+  const onTimeChange = (v: string) => {
+    setCronDirty(false);
+    setTimeLocal(v);
+  };
+  const toggleDay = (d: number) => {
+    setCronDirty(false);
     setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
+  };
 
   const refresh = async () => {
     const [{ data: ts }, { data: ss }] = await Promise.all([
@@ -56,7 +67,9 @@ function Schedules() {
   }, []); // eslint-disable-line
 
   const create = async () => {
-    if (!testId || !cron) return toast.error("Pick a test and cron.");
+    if (!testId) return toast.error("Pick a test.");
+    if (!cronDirty && !timeLocal) return toast.error("Pick a time (or set a cron under Advanced).");
+    if (!cron) return toast.error("Set a schedule time or cron.");
     const { error } = await supabase.from("schedules").insert({
       owner_id: user!.id,
       test_id: testId,
@@ -124,7 +137,7 @@ function Schedules() {
                 <Input
                   type="time"
                   value={timeLocal}
-                  onChange={(e) => setTimeLocal(e.target.value)}
+                  onChange={(e) => onTimeChange(e.target.value)}
                   className="font-mono"
                 />
               </div>
@@ -144,15 +157,26 @@ function Schedules() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                {days.length === 0
-                  ? "Every day"
-                  : "On " +
-                    days
-                      .slice()
-                      .sort((a, b) => a - b)
-                      .map((d) => DAY_LABELS[d])
-                      .join(", ")}{" "}
-                at {timeLocal} your time · cron <span className="font-mono">{cron}</span> (UTC)
+                {cronDirty ? (
+                  <>
+                    Custom cron: <span className="font-mono">{cron}</span> (UTC)
+                  </>
+                ) : !timeLocal ? (
+                  "Pick a time."
+                ) : (
+                  <>
+                    {days.length === 0
+                      ? "Every day"
+                      : "On " +
+                        days
+                          .slice()
+                          .sort((a, b) => a - b)
+                          .map((d) => DAY_LABELS[d])
+                          .join(", ")}{" "}
+                    at {timeLocal} your time · cron <span className="font-mono">{cron}</span> (UTC).
+                    Fixed UTC time — may shift ±1h across a DST change.
+                  </>
+                )}
               </p>
             </div>
             <details className="text-xs">
@@ -161,14 +185,20 @@ function Schedules() {
               </summary>
               <Input
                 value={cron}
-                onChange={(e) => setCron(e.target.value)}
+                onChange={(e) => {
+                  setCronDirty(true);
+                  setCron(e.target.value);
+                }}
                 className="font-mono mt-2"
               />
               <div className="flex flex-wrap gap-2 mt-2">
                 {PRESETS.map((p) => (
                   <button
                     key={p.cron}
-                    onClick={() => setCron(p.cron)}
+                    onClick={() => {
+                      setCronDirty(true);
+                      setCron(p.cron);
+                    }}
                     className="px-3 py-1 rounded-full border border-border hover:bg-surface-elevated transition"
                   >
                     {p.label}
@@ -176,7 +206,11 @@ function Schedules() {
                 ))}
               </div>
             </details>
-            <Button onClick={create} className="bg-gradient-primary border-0">
+            <Button
+              onClick={create}
+              disabled={!cronDirty && !timeLocal}
+              className="bg-gradient-primary border-0"
+            >
               <Plus className="h-4 w-4 mr-1" /> Create schedule
             </Button>
           </>

@@ -106,7 +106,10 @@ function Dashboard() {
     const { error } = await supabase.from("projects").delete().eq("id", activeProject);
     if (error) return toast.error(error.message);
     toast.success("Project deleted");
-    setActiveProject(null);
+    // Reselect a surviving project (refresh()'s own reselect guard sees the stale
+    // pre-delete activeProject in its closure, so do it explicitly here).
+    const next = projects.find((p) => p.id !== activeProject) ?? null;
+    setActiveProject(next?.id ?? null);
     refresh();
   };
 

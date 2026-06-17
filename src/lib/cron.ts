@@ -5,8 +5,15 @@ export function matches(field: string, value: number): boolean {
     const stepMatch = part.match(/^(\*|\d+(-\d+)?)\/(\d+)$/);
     if (stepMatch) {
       const step = parseInt(stepMatch[3], 10);
-      const base = stepMatch[1] === "*" ? 0 : parseInt(stepMatch[1].split("-")[0], 10);
-      if ((value - base) % step === 0 && value >= base) return true;
+      const rangePart = stepMatch[1];
+      let base = 0;
+      let end = Infinity; // "A/N" and "*/N" have no upper bound; "A-B/N" does.
+      if (rangePart !== "*") {
+        const [a, b] = rangePart.split("-");
+        base = parseInt(a, 10);
+        if (b !== undefined) end = parseInt(b, 10);
+      }
+      if (value >= base && value <= end && (value - base) % step === 0) return true;
       continue;
     }
     if (part.includes("-")) {
@@ -25,7 +32,8 @@ export function matches(field: string, value: number): boolean {
 // an empty list means every day. Day-rollover from the conversion shifts the weekdays too.
 export function buildCronFromLocal(timeHHMM: string, days: number[], offsetMin: number): string {
   const [h, m] = timeHHMM.split(":").map((n) => parseInt(n, 10));
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return "0 9 * * *";
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59)
+    return "0 9 * * *";
   const utcTotal = h * 60 + m + offsetMin;
   const dayShift = Math.floor(utcTotal / 1440); // -1, 0, or +1
   const utcMin = ((utcTotal % 1440) + 1440) % 1440;

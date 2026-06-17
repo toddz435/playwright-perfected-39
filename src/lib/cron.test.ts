@@ -1,7 +1,24 @@
 import { describe, it, expect } from "vitest";
 import { matches, isDue, buildCronFromLocal } from "./cron";
 
+describe("matches stepped ranges", () => {
+  it("honors the upper bound of A-B/N (does not match past B)", () => {
+    expect(matches("0-30/10", 0)).toBe(true);
+    expect(matches("0-30/10", 30)).toBe(true);
+    expect(matches("0-30/10", 40)).toBe(false); // past the range end
+  });
+  it("A/N and */N have no upper bound", () => {
+    expect(matches("*/10", 40)).toBe(true);
+    expect(matches("5/10", 45)).toBe(true);
+  });
+});
+
 describe("buildCronFromLocal", () => {
+  it("falls back on out-of-range time components", () => {
+    expect(buildCronFromLocal("24:00", [], 0)).toBe("0 9 * * *");
+    expect(buildCronFromLocal("14:99", [], 0)).toBe("0 9 * * *");
+    expect(buildCronFromLocal("", [], 0)).toBe("0 9 * * *");
+  });
   it("converts a local daily time to a UTC cron (UTC-5)", () => {
     expect(buildCronFromLocal("14:30", [], 300)).toBe("30 19 * * *");
   });
