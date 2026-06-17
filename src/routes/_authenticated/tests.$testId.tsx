@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { locatorLabel } from "@/lib/locator";
+import { advisoriesToMarkdown } from "@/lib/advisory-format";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -303,9 +304,23 @@ function TestDetail() {
       {/* data-testid advice (developer-facing) */}
       {advisories && (
         <section className="glass rounded-2xl p-6 shadow-card">
-          <h2 className="font-semibold mb-1 flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-amber-500" /> data-testid advice
-          </h2>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h2 className="font-semibold flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-amber-500" /> data-testid advice
+            </h2>
+            {advisories.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(advisoriesToMarkdown(test.name, advisories));
+                  toast.success("Copied a Markdown checklist — paste it into a GitHub issue/PR");
+                }}
+              >
+                Copy as Markdown
+              </Button>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mb-4">
             Add these stable handles in your app's DOM so locators stop being brittle for everyone.
             Testrify sees the rendered page, so it points at the element — your devs place the
