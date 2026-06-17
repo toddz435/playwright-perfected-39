@@ -37,6 +37,8 @@ function Codegen() {
   const [result, setResult] = useState<any>(null);
   const [recordUrl, setRecordUrl] = useState("");
   const [recording, setRecording] = useState(false);
+  const [testName, setTestName] = useState("");
+  const [newProjectName, setNewProjectName] = useState("");
 
   useEffect(() => {
     supabase
@@ -45,7 +47,7 @@ function Codegen() {
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         setProjects(data || []);
-        if (data?.[0]) setProjectId(data[0].id);
+        setProjectId(data?.[0]?.id ?? "__new__");
       });
   }, []);
 
@@ -73,6 +75,7 @@ function Codegen() {
     try {
       const r = await apiCall<any>("/api/protected/ai-codegen", { script });
       setResult(r);
+      setTestName(r.name || "Recorded test"); // prefill, but the user can edit it
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -80,16 +83,32 @@ function Codegen() {
   };
 
   const save = async () => {
-    if (!result || !projectId) return toast.error("Pick a project.");
+    if (!result) return toast.error("Convert a script first.");
+    if (!testName.trim()) return toast.error("Give the test a name.");
+
+    // Resolve the target project — either an existing one, or a new one to create.
+    let targetProjectId = projectId;
+    if (projectId === "__new__") {
+      if (!newProjectName.trim()) return toast.error("Name the new project.");
+      const { data: proj, error: pErr } = await supabase
+        .from("projects")
+        .insert({ owner_id: user!.id, name: newProjectName.trim() })
+        .select()
+        .single();
+      if (pErr || !proj) return toast.error(pErr?.message || "Could not create project");
+      targetProjectId = proj.id;
+    }
+    if (!targetProjectId) return toast.error("Pick or create a project.");
+
     const { data, error } = await supabase
       .from("tests")
       .insert({
-        project_id: projectId,
+        project_id: targetProjectId,
         owner_id: user!.id,
-        name: result.name,
+        name: testName.trim(),
         description: result.description,
         type: "browser",
-        spec: result,
+        spec: { ...result, name: testName.trim() },
       })
       .select()
       .single();
@@ -135,8 +154,8 @@ function Codegen() {
         </div>
         <p className="text-xs text-muted-foreground">
           {recording
-            ? "A browser window opened on this machine — interact with your app, then close the window to finish."
-            : "Opens a real Chromium window locally; your clicks become test steps. (Runs on the local server only.)"}
+            ? "Recording… a browser + Playwright Inspector opened on this machine. Click around, then CLOSE the browser window — the captured steps appear here only after you close it."
+            : "Opens a real Chromium window locally. Interact, then close it to bring the steps back here. (Live code shows in Playwright's Inspector meanwhile. Runs on the local server only.)"}
         </p>
       </section>
 
@@ -201,19 +220,39 @@ function Codegen() {
                   </div>
                 ))}
               </div>
-              <div className="space-y-2 pt-2 border-t border-border">
-                <Label className="text-xs">SAVE TO PROJECT</Label>
-                <select
-                  value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  className="w-full bg-input/50 border border-border rounded-md px-2 py-1.5 text-sm"
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-3 pt-2 border-t border-border">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">TEST NAME</Label>
+                  <Input
+                    value={testName}
+                    onChange={(e) => setTestName(e.target.value)}
+                    placeholder="e.g. MUI — open Installation"
+                    className="bg-input/50 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">PROJECT</Label>
+                  <select
+                    value={projectId}
+                    onChange={(e) => setProjectId(e.target.value)}
+                    className="w-full bg-input/50 border border-border rounded-md px-2 py-1.5 text-sm"
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                    <option value="__new__">＋ New project…</option>
+                  </select>
+                  {projectId === "__new__" && (
+                    <Input
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      placeholder="New project name"
+                      className="bg-input/50 text-sm"
+                    />
+                  )}
+                </div>
                 <Button onClick={save} className="w-full bg-gradient-primary border-0">
                   <Save className="h-4 w-4 mr-2" /> Save as test
                 </Button>
