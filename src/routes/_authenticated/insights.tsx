@@ -79,8 +79,8 @@ function Insights() {
           <Wand2 className="h-4 w-4 text-amber-500" /> Flaky locators
         </h2>
         <p className="text-xs text-muted-foreground mb-3">
-          Locators that have needed healing most often — your best candidates to stabilize (e.g.
-          add a data-testid).
+          Locators that have needed healing most often — your best candidates to stabilize (e.g. add
+          a data-testid).
         </p>
         {hotspots.length === 0 ? (
           <div className="text-sm text-success glass rounded-xl p-6">
