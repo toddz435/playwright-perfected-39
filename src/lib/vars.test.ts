@@ -28,6 +28,15 @@ describe("secretValues + maskSecrets", () => {
     const v = { value: "hunter2" };
     expect(maskSecrets(v, [])).toEqual(v);
   });
+
+  it("masks longest-first so a prefix secret can't leave a partial tail", () => {
+    // "pass" before "password" would yield "••••word"; longest-first avoids the leak.
+    expect(maskSecrets("password", ["pass", "password"])).toBe(SECRET_MASK);
+  });
+
+  it("ignores whitespace-only secret values (no corruption)", () => {
+    expect(maskSecrets("a b c", [" "])).toBe("a b c");
+  });
 });
 
 describe("interpolate", () => {

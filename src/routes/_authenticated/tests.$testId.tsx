@@ -574,6 +574,7 @@ function TestDetail() {
               <span className="text-muted-foreground text-xs">=</span>
               <Input
                 type={row.secret && !showSecrets ? "password" : "text"}
+                autoComplete="off"
                 value={row.value}
                 onChange={(e) => setVar(i, { value: e.target.value })}
                 placeholder="value"

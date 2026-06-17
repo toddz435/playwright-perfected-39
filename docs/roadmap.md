@@ -61,8 +61,9 @@ trusted local machine:
 - **SSRF / private-IP block** on the recorded URL (currently allowed, because pointing at
   your own `localhost` is a legitimate local-recording use).
 - **Per-user concurrency cap** (each recording spawns a headed browser + holds a request).
-- **Secret variables** (Phase 2c, done): a variable can be flagged secret — masked in the
-  UI and stripped from run records (`maskSecrets`). Still owed: (a) the value is stored in
+- **Secret variables** (done): a variable can be flagged secret — masked in the UI, stripped
+  from run records, and scrubbed from anything sent to the LLM (heal + failure analysis) via
+  `maskSecrets`. Still owed: (a) the value is stored in
   the test spec jsonb in plaintext — **encryption-at-rest** is a later item; (b) the recorder
   still emits literal `fill()` values — **auto-converting recorded passwords to `{{secret}}`**
   is not built yet. **Until those land, don't record real production credentials.**

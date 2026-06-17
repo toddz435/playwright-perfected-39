@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, json } from "@/lib/server-auth.server";
 import { aiChat } from "@/lib/lovable-ai.server";
+import { secretValues, maskSecrets } from "@/lib/vars";
 
 export const Route = createFileRoute("/api/protected/ai-analyze-failure")({
   server: {
@@ -8,7 +9,11 @@ export const Route = createFileRoute("/api/protected/ai-analyze-failure")({
       POST: async ({ request }) => {
         try {
           await requireUser(request);
-          const { test, failedStep, error, allSteps } = await request.json();
+          const body = await request.json();
+          // Strip secret-variable values out of everything sent to the external LLM
+          // (the test object carries spec.variables in plaintext).
+          const secrets = secretValues(body?.test?.spec);
+          const { test, failedStep, error, allSteps } = maskSecrets(body, secrets);
           const result = await aiChat({
             system: `You are a senior QA engineer doing root-cause analysis on test failures. Be concise, specific, and actionable. Output GitHub-flavored markdown.`,
             user: `A test failed. Provide a root-cause analysis with a likely fix.

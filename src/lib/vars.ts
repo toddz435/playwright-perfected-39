@@ -50,7 +50,11 @@ export function secretValues(spec: any): string[] {
 // Deep-replaces any occurrence of a secret value with the mask, so substituted secrets
 // never end up stored in run records. Uses split/join (no regex escaping needed).
 export function maskSecrets<T>(value: T, secrets: string[]): T {
-  const list = secrets.filter((s) => s.length > 0);
+  // Skip whitespace-only values (masking those is pure corruption, no security value), and
+  // mask longest-first so a secret that is a prefix of another can't leave a partial tail.
+  const list = [...new Set(secrets.filter((s) => s.trim().length > 0))].sort(
+    (a, b) => b.length - a.length,
+  );
   if (!list.length) return value;
   if (typeof value === "string") {
     let out: string = value;
