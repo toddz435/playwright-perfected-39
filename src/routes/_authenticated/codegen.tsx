@@ -17,15 +17,9 @@ export const Route = createFileRoute("/_authenticated/codegen")({
   component: Codegen,
 });
 
-const SAMPLE = `// Paste a recorded Playwright script (npx playwright codegen <url>).
-// Testrify parses getByRole/getByLabel/etc. directly and hardens any brittle
-// css/xpath locators into resilient ones.
-await page.goto('https://example.com/login');
-await page.getByLabel('Email').fill('test@example.com');
-await page.getByLabel('Password').fill('secret');
-await page.getByRole('button', { name: 'Sign in' }).click();
-await page.locator('#toast-2f9a').click();
-await expect(page.getByText('Welcome back')).toBeVisible();`;
+const SAMPLE = `// Record a flow above, or paste a recorded Playwright script here
+// (npx playwright codegen <url>). The script will appear here automatically
+// after you record and CLOSE the browser window. Then click "Convert".`;
 
 function Codegen() {
   const { user } = useAuth();
