@@ -5,7 +5,7 @@ import { Logo } from "@/components/logo";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Activity, FlaskConical, LogOut, Loader2, Wand2, Clock, LayoutDashboard,
-  Search, ChevronDown, Plus, User as UserIcon, Command as CommandIcon,
+  Search, ChevronDown, Plus, User as UserIcon, Command as CommandIcon, TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ const TABS = [
   { to: "/codegen", label: "Codegen", icon: Wand2 },
   { to: "/api-tester", label: "API", icon: FlaskConical },
   { to: "/schedules", label: "Schedules", icon: Clock },
+  { to: "/insights", label: "Insights", icon: TrendingUp },
 ] as const;
 
 function AuthLayout() {

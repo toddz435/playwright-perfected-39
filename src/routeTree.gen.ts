@@ -16,6 +16,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSchedulesRouteImport } from './routes/_authenticated/schedules'
+import { Route as AuthenticatedInsightsRouteImport } from './routes/_authenticated/insights'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedConsoleRouteImport } from './routes/_authenticated/console'
 import { Route as AuthenticatedCodegenRouteImport } from './routes/_authenticated/codegen'
@@ -64,6 +65,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthenticatedSchedulesRoute = AuthenticatedSchedulesRouteImport.update({
   id: '/schedules',
   path: '/schedules',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedInsightsRoute = AuthenticatedInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/codegen': typeof AuthenticatedCodegenRoute
   '/console': typeof AuthenticatedConsoleRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/insights': typeof AuthenticatedInsightsRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   '/codegen': typeof AuthenticatedCodegenRoute
   '/console': typeof AuthenticatedConsoleRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/insights': typeof AuthenticatedInsightsRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/_authenticated/codegen': typeof AuthenticatedCodegenRoute
   '/_authenticated/console': typeof AuthenticatedConsoleRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/insights': typeof AuthenticatedInsightsRoute
   '/_authenticated/schedules': typeof AuthenticatedSchedulesRoute
   '/_authenticated/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
@@ -232,6 +241,7 @@ export interface FileRouteTypes {
     | '/codegen'
     | '/console'
     | '/dashboard'
+    | '/insights'
     | '/schedules'
     | '/tests/$testId'
     | '/api/protected/advise-locators'
@@ -255,6 +265,7 @@ export interface FileRouteTypes {
     | '/codegen'
     | '/console'
     | '/dashboard'
+    | '/insights'
     | '/schedules'
     | '/tests/$testId'
     | '/api/protected/advise-locators'
@@ -279,6 +290,7 @@ export interface FileRouteTypes {
     | '/_authenticated/codegen'
     | '/_authenticated/console'
     | '/_authenticated/dashboard'
+    | '/_authenticated/insights'
     | '/_authenticated/schedules'
     | '/_authenticated/tests/$testId'
     | '/api/protected/advise-locators'
@@ -361,6 +373,13 @@ declare module '@tanstack/react-router' {
       path: '/schedules'
       fullPath: '/schedules'
       preLoaderRoute: typeof AuthenticatedSchedulesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/insights': {
+      id: '/_authenticated/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof AuthenticatedInsightsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/dashboard': {
@@ -476,6 +495,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCodegenRoute: typeof AuthenticatedCodegenRoute
   AuthenticatedConsoleRoute: typeof AuthenticatedConsoleRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedInsightsRoute: typeof AuthenticatedInsightsRoute
   AuthenticatedSchedulesRoute: typeof AuthenticatedSchedulesRoute
   AuthenticatedTestsTestIdRoute: typeof AuthenticatedTestsTestIdRoute
 }
@@ -485,6 +505,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCodegenRoute: AuthenticatedCodegenRoute,
   AuthenticatedConsoleRoute: AuthenticatedConsoleRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedInsightsRoute: AuthenticatedInsightsRoute,
   AuthenticatedSchedulesRoute: AuthenticatedSchedulesRoute,
   AuthenticatedTestsTestIdRoute: AuthenticatedTestsTestIdRoute,
 }
