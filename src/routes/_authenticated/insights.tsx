@@ -12,17 +12,24 @@ export const Route = createFileRoute("/_authenticated/insights")({
 
 function Insights() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [stats, setStats] = useState<RunStats | null>(null);
   const [testNames, setTestNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     (async () => {
-      const { data: runs } = await supabase
+      const { data: runs, error } = await supabase
         .from("runs")
         .select("test_id,status,created_at,steps")
         .order("created_at", { ascending: false })
         .limit(300);
+      if (error) {
+        // Don't render a celebratory "all clean" state on a failed fetch.
+        setLoadError(error.message);
+        setLoading(false);
+        return;
+      }
       const { data: tests } = await supabase.from("tests").select("id,name");
       setTestNames(Object.fromEntries((tests || []).map((t) => [t.id, t.name])));
       const rows = (runs || []) as any[];
@@ -36,6 +43,15 @@ function Insights() {
     return (
       <div className="p-12 flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+
+  if (loadError)
+    return (
+      <div className="p-8 max-w-6xl mx-auto">
+        <div className="glass rounded-xl p-6 text-sm text-destructive">
+          Couldn’t load run history: {loadError}
+        </div>
       </div>
     );
 

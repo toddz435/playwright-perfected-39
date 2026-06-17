@@ -37,13 +37,16 @@ export const Route = createFileRoute("/api/public/run-due-schedules")({
               const { status } = await executeTest(supabaseAdmin, test, sched.owner_id, {
                 scheduled: true,
               });
+              results.push({ schedule: sched.id, status });
+            } catch (e: any) {
+              results.push({ schedule: sched.id, error: e?.message });
+            } finally {
+              // Always advance last_run_at — even if the run errored — so a failing
+              // schedule doesn't re-fire every poll (the dedupe window keys on this).
               await supabaseAdmin
                 .from("schedules")
                 .update({ last_run_at: now.toISOString() })
                 .eq("id", sched.id);
-              results.push({ schedule: sched.id, status });
-            } catch (e: any) {
-              results.push({ schedule: sched.id, error: e?.message });
             }
           }
           return new Response(
