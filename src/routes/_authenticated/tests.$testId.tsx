@@ -186,9 +186,10 @@ function TestDetail() {
     setHardening(false);
   };
 
-  // --- Step editor ---
+  // --- Step editor --- (draft rows carry a transient _k for stable React keys)
   const startEdit = () => {
-    setDraft((test.spec?.steps || []).map((s: any) => ({ ...s })));
+    setDraft((test.spec?.steps || []).map((s: any) => ({ ...s, _k: crypto.randomUUID() })));
+    setHealed({}); // index-keyed heal state would point at the wrong steps after edits
     setEditing(true);
   };
   const patchStep = (i: number, patch: any) =>
@@ -197,6 +198,21 @@ function TestDetail() {
   // fallbacks for that step (a manual override).
   const setStepTarget = (i: number, value: string) =>
     patchStep(i, { target: value, locator: undefined, fallbacks: undefined });
+  // Changing the action reconciles fields: drop a now-irrelevant value, and when switching
+  // to a URL action drop any structured locator so the field is treated as the URL/target.
+  const onActionChange = (i: number, action: string) =>
+    setDraft((d) =>
+      d.map((s, idx) => {
+        if (idx !== i) return s;
+        const next: any = { ...s, action };
+        if (!VALUE_ACTIONS.has(action)) delete next.value;
+        if (URL_ACTIONS.has(action)) {
+          delete next.locator;
+          delete next.fallbacks;
+        }
+        return next;
+      }),
+    );
   const moveStep = (i: number, dir: -1 | 1) =>
     setDraft((d) => {
       const j = i + dir;
@@ -206,12 +222,28 @@ function TestDetail() {
       return copy;
     });
   const removeStep = (i: number) => setDraft((d) => d.filter((_, idx) => idx !== i));
-  const addStep = () => setDraft((d) => [...d, { action: "click", target: "" }]);
+  const addStep = () =>
+    setDraft((d) => [...d, { action: "click", target: "", _k: crypto.randomUUID() }]);
   const saveSteps = async () => {
+    // Validate before persisting so a broken step can't be saved and fail mid-run.
+    if (draft.length === 0) return toast.error("Add at least one step.");
+    for (let i = 0; i < draft.length; i++) {
+      const s = draft[i];
+      const hasTarget = !!(s.locator || (s.target ?? "").trim());
+      if (!hasTarget)
+        return toast.error(
+          `Step ${i + 1}: add a ${URL_ACTIONS.has(s.action) ? "URL" : "locator"}.`,
+        );
+      if (s.action === "expect_count" && !Number.isFinite(Number(s.value)))
+        return toast.error(`Step ${i + 1}: expect_count needs a number.`);
+      if ((s.action === "expect_text" || s.action === "expect_value") && !(s.value ?? "").trim())
+        return toast.error(`Step ${i + 1}: ${s.action} needs a value.`);
+    }
     setSavingSteps(true);
+    const steps = draft.map(({ _k, ...s }: any) => s); // strip the transient key
     const { error } = await supabase
       .from("tests")
-      .update({ spec: { ...test.spec, steps: draft } })
+      .update({ spec: { ...test.spec, steps } })
       .eq("id", testId);
     setSavingSteps(false);
     if (error) return toast.error(error.message);
@@ -481,13 +513,13 @@ function TestDetail() {
           <div className="space-y-2">
             {draft.map((s: any, i: number) => (
               <div
-                key={i}
+                key={s._k ?? i}
                 className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface/40 p-2"
               >
                 <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}</span>
                 <select
                   value={s.action}
-                  onChange={(e) => patchStep(i, { action: e.target.value })}
+                  onChange={(e) => onActionChange(i, e.target.value)}
                   className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
                 >
                   {STEP_ACTIONS.map((a) => (
