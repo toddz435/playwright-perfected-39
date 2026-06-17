@@ -106,7 +106,7 @@ function Dashboard() {
       .from("runs")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(100);
     setRuns(rs || []);
     setLoading(false);
   };
@@ -194,6 +194,9 @@ function Dashboard() {
   };
 
   const projectTests = tests.filter((t) => t.project_id === activeProject);
+  // Recent runs scoped to the active project, so switching projects shows its runs.
+  const projectTestIds = new Set(projectTests.map((t) => t.id));
+  const projectRuns = runs.filter((r) => projectTestIds.has(r.test_id));
 
   if (loading)
     return (
@@ -398,11 +401,11 @@ function Dashboard() {
             <h2 className="font-semibold text-lg mb-3 flex items-center gap-2">
               <Activity className="h-4 w-4" /> Recent runs
             </h2>
-            {runs.length === 0 ? (
+            {projectRuns.length === 0 ? (
               <div className="text-sm text-muted-foreground glass rounded-xl p-6">No runs yet.</div>
             ) : (
               <div className="grid gap-3">
-                {runs.map((r) => {
+                {projectRuns.map((r) => {
                   const test = tests.find((t) => t.id === r.test_id);
                   return (
                     <div key={r.id} className="glass rounded-xl p-4 shadow-card">
