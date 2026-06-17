@@ -12,6 +12,7 @@ import {
   type ElementDescriptor,
 } from "@/lib/harden-core";
 import { redactSnippet } from "@/lib/redact";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // A CSS locator counts as "stable enough" (no testid needed) only when it's a clean,
 // human id or a name-scoped selector — not an auto-generated id or a structural path.
@@ -226,4 +227,25 @@ export async function hardenBrowserSteps(
   }
 
   return { steps: outSteps, report, advisories };
+}
+
+// Hardens one test and saves the rewritten spec; returns the report plus status counts.
+// Shared by /harden-test (single) and /harden-project (batch) so they can't drift.
+export async function hardenAndSaveTest(
+  sb: SupabaseClient,
+  test: any,
+): Promise<{ report: HardenReportEntry[]; improved: number; kept: number; unresolved: number }> {
+  const steps = (test.spec?.steps || []) as Step[];
+  const { steps: hardened, report } = await hardenBrowserSteps(steps);
+  await sb
+    .from("tests")
+    .update({ spec: { ...test.spec, steps: hardened } })
+    .eq("id", test.id);
+  const count = (st: HardenStatus) => report.filter((r) => r.status === st).length;
+  return {
+    report,
+    improved: count("improved"),
+    kept: count("kept"),
+    unresolved: count("unresolved"),
+  };
 }

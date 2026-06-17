@@ -16,6 +16,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSchedulesRouteImport } from './routes/_authenticated/schedules'
+import { Route as AuthenticatedInsightsRouteImport } from './routes/_authenticated/insights'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedConsoleRouteImport } from './routes/_authenticated/console'
 import { Route as AuthenticatedCodegenRouteImport } from './routes/_authenticated/codegen'
@@ -24,6 +25,7 @@ import { Route as ApiPublicRunDueSchedulesRouteImport } from './routes/api/publi
 import { Route as ApiProtectedSeedDemoRouteImport } from './routes/api/protected/seed-demo'
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
 import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protected/harden-test'
+import { Route as ApiProtectedHardenProjectRouteImport } from './routes/api/protected/harden-project'
 import { Route as ApiProtectedAiHealSelectorRouteImport } from './routes/api/protected/ai-heal-selector'
 import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/protected/ai-generate-test'
 import { Route as ApiProtectedAiGenerateApiSuiteRouteImport } from './routes/api/protected/ai-generate-api-suite'
@@ -64,6 +66,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthenticatedSchedulesRoute = AuthenticatedSchedulesRouteImport.update({
   id: '/schedules',
   path: '/schedules',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedInsightsRoute = AuthenticatedInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -107,6 +114,12 @@ const ApiProtectedHardenTestRoute = ApiProtectedHardenTestRouteImport.update({
   path: '/api/protected/harden-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProtectedHardenProjectRoute =
+  ApiProtectedHardenProjectRouteImport.update({
+    id: '/api/protected/harden-project',
+    path: '/api/protected/harden-project',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiProtectedAiHealSelectorRoute =
   ApiProtectedAiHealSelectorRouteImport.update({
     id: '/api/protected/ai-heal-selector',
@@ -159,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/codegen': typeof AuthenticatedCodegenRoute
   '/console': typeof AuthenticatedConsoleRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/insights': typeof AuthenticatedInsightsRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
@@ -167,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
+  '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
@@ -182,6 +197,7 @@ export interface FileRoutesByTo {
   '/codegen': typeof AuthenticatedCodegenRoute
   '/console': typeof AuthenticatedConsoleRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/insights': typeof AuthenticatedInsightsRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
@@ -190,6 +206,7 @@ export interface FileRoutesByTo {
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
+  '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
@@ -207,6 +224,7 @@ export interface FileRoutesById {
   '/_authenticated/codegen': typeof AuthenticatedCodegenRoute
   '/_authenticated/console': typeof AuthenticatedConsoleRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/insights': typeof AuthenticatedInsightsRoute
   '/_authenticated/schedules': typeof AuthenticatedSchedulesRoute
   '/_authenticated/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
@@ -215,6 +233,7 @@ export interface FileRoutesById {
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
+  '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
@@ -232,6 +251,7 @@ export interface FileRouteTypes {
     | '/codegen'
     | '/console'
     | '/dashboard'
+    | '/insights'
     | '/schedules'
     | '/tests/$testId'
     | '/api/protected/advise-locators'
@@ -240,6 +260,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
+    | '/api/protected/harden-project'
     | '/api/protected/harden-test'
     | '/api/protected/run-test'
     | '/api/protected/seed-demo'
@@ -255,6 +276,7 @@ export interface FileRouteTypes {
     | '/codegen'
     | '/console'
     | '/dashboard'
+    | '/insights'
     | '/schedules'
     | '/tests/$testId'
     | '/api/protected/advise-locators'
@@ -263,6 +285,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
+    | '/api/protected/harden-project'
     | '/api/protected/harden-test'
     | '/api/protected/run-test'
     | '/api/protected/seed-demo'
@@ -279,6 +302,7 @@ export interface FileRouteTypes {
     | '/_authenticated/codegen'
     | '/_authenticated/console'
     | '/_authenticated/dashboard'
+    | '/_authenticated/insights'
     | '/_authenticated/schedules'
     | '/_authenticated/tests/$testId'
     | '/api/protected/advise-locators'
@@ -287,6 +311,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
+    | '/api/protected/harden-project'
     | '/api/protected/harden-test'
     | '/api/protected/run-test'
     | '/api/protected/seed-demo'
@@ -306,6 +331,7 @@ export interface RootRouteChildren {
   ApiProtectedAiGenerateApiSuiteRoute: typeof ApiProtectedAiGenerateApiSuiteRoute
   ApiProtectedAiGenerateTestRoute: typeof ApiProtectedAiGenerateTestRoute
   ApiProtectedAiHealSelectorRoute: typeof ApiProtectedAiHealSelectorRoute
+  ApiProtectedHardenProjectRoute: typeof ApiProtectedHardenProjectRoute
   ApiProtectedHardenTestRoute: typeof ApiProtectedHardenTestRoute
   ApiProtectedRunTestRoute: typeof ApiProtectedRunTestRoute
   ApiProtectedSeedDemoRoute: typeof ApiProtectedSeedDemoRoute
@@ -363,6 +389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSchedulesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/insights': {
+      id: '/_authenticated/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof AuthenticatedInsightsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -417,6 +450,13 @@ declare module '@tanstack/react-router' {
       path: '/api/protected/harden-test'
       fullPath: '/api/protected/harden-test'
       preLoaderRoute: typeof ApiProtectedHardenTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/harden-project': {
+      id: '/api/protected/harden-project'
+      path: '/api/protected/harden-project'
+      fullPath: '/api/protected/harden-project'
+      preLoaderRoute: typeof ApiProtectedHardenProjectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/protected/ai-heal-selector': {
@@ -476,6 +516,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCodegenRoute: typeof AuthenticatedCodegenRoute
   AuthenticatedConsoleRoute: typeof AuthenticatedConsoleRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedInsightsRoute: typeof AuthenticatedInsightsRoute
   AuthenticatedSchedulesRoute: typeof AuthenticatedSchedulesRoute
   AuthenticatedTestsTestIdRoute: typeof AuthenticatedTestsTestIdRoute
 }
@@ -485,6 +526,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCodegenRoute: AuthenticatedCodegenRoute,
   AuthenticatedConsoleRoute: AuthenticatedConsoleRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedInsightsRoute: AuthenticatedInsightsRoute,
   AuthenticatedSchedulesRoute: AuthenticatedSchedulesRoute,
   AuthenticatedTestsTestIdRoute: AuthenticatedTestsTestIdRoute,
 }
@@ -506,6 +548,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedAiGenerateApiSuiteRoute: ApiProtectedAiGenerateApiSuiteRoute,
   ApiProtectedAiGenerateTestRoute: ApiProtectedAiGenerateTestRoute,
   ApiProtectedAiHealSelectorRoute: ApiProtectedAiHealSelectorRoute,
+  ApiProtectedHardenProjectRoute: ApiProtectedHardenProjectRoute,
   ApiProtectedHardenTestRoute: ApiProtectedHardenTestRoute,
   ApiProtectedRunTestRoute: ApiProtectedRunTestRoute,
   ApiProtectedSeedDemoRoute: ApiProtectedSeedDemoRoute,

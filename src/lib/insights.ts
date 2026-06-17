@@ -1,0 +1,63 @@
+// Pure analytics over run history: which locators heal most often (flaky hotspots) and
+// overall heal/pass stats. Used by the Insights page. No I/O — the route fetches runs.
+
+export type RunRow = {
+  test_id: string;
+  status?: string;
+  created_at?: string;
+  steps?: any[];
+};
+
+export type Hotspot = {
+  testId: string;
+  locator: string; // the locator that kept breaking (healed_from)
+  heals: number; // how many times it had to heal across runs
+  fallback: number; // recovered via a stored fallback
+  ai: number; // recovered via the AI healer
+  lastHealedTo?: string; // most recent working replacement
+};
+
+// Aggregates healed steps by (test, broken locator). Pass runs NEWEST-FIRST so
+// lastHealedTo reflects the most recent fix. Sorted by heal count, descending.
+export function flakyHotspots(runs: RunRow[]): Hotspot[] {
+  const map = new Map<string, Hotspot>();
+  for (const r of runs) {
+    for (const s of r.steps || []) {
+      if (s.status !== "healed" || !s.healed_from) continue;
+      const key = `${r.test_id}|${s.healed_from}`;
+      let h = map.get(key);
+      if (!h) {
+        h = { testId: r.test_id, locator: s.healed_from, heals: 0, fallback: 0, ai: 0 };
+        map.set(key, h);
+      }
+      h.heals++;
+      if (s.recovery === "fallback") h.fallback++;
+      else if (s.recovery === "ai") h.ai++;
+      if (h.lastHealedTo === undefined && s.healed_to) h.lastHealedTo = s.healed_to;
+    }
+  }
+  return [...map.values()].sort((a, b) => b.heals - a.heals);
+}
+
+export type RunStats = {
+  total: number;
+  passed: number;
+  failed: number;
+  heals: number; // total healed steps across all runs
+  runsWithHeals: number; // runs that needed at least one heal
+};
+
+export function runStats(runs: RunRow[]): RunStats {
+  let passed = 0;
+  let failed = 0;
+  let heals = 0;
+  let runsWithHeals = 0;
+  for (const r of runs) {
+    if (r.status === "passed") passed++;
+    else if (r.status === "failed") failed++;
+    const n = (r.steps || []).filter((s: any) => s.status === "healed").length;
+    heals += n;
+    if (n > 0) runsWithHeals++;
+  }
+  return { total: runs.length, passed, failed, heals, runsWithHeals };
+}
