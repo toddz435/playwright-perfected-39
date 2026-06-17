@@ -102,17 +102,27 @@ function Dashboard() {
       .select("*")
       .order("created_at", { ascending: false });
     setTests(ts || []);
-    const { data: rs } = await supabase
-      .from("runs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(20);
-    setRuns(rs || []);
     setLoading(false);
   };
   useEffect(() => {
     refresh();
   }, []); // eslint-disable-line
+
+  // Recent runs are fetched scoped to the active project (via an inner join on tests),
+  // so a project's runs are never hidden behind a global limit.
+  const loadRuns = (projectId: string | null) => {
+    if (!projectId) return;
+    supabase
+      .from("runs")
+      .select("*, tests!inner(project_id)")
+      .eq("tests.project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => setRuns(data || []));
+  };
+  useEffect(() => {
+    loadRuns(activeProject);
+  }, [activeProject]); // eslint-disable-line
 
   const createProject = async () => {
     if (!pName.trim()) return toast.error("Project name is required");
@@ -165,7 +175,7 @@ function Dashboard() {
     try {
       const { run } = await apiCall<any>("/api/protected/run-test", { testId });
       toast[run.status === "passed" ? "success" : "error"](`Run ${run.status}`);
-      refresh();
+      loadRuns(activeProject);
       if (run.status === "failed") analyzeRun(run);
     } catch (e: any) {
       toast.error(e.message);
@@ -194,6 +204,9 @@ function Dashboard() {
   };
 
   const projectTests = tests.filter((t) => t.project_id === activeProject);
+  // Recent runs scoped to the active project, so switching projects shows its runs.
+  const projectTestIds = new Set(projectTests.map((t) => t.id));
+  const projectRuns = runs.filter((r) => projectTestIds.has(r.test_id));
 
   if (loading)
     return (
@@ -398,11 +411,11 @@ function Dashboard() {
             <h2 className="font-semibold text-lg mb-3 flex items-center gap-2">
               <Activity className="h-4 w-4" /> Recent runs
             </h2>
-            {runs.length === 0 ? (
+            {projectRuns.length === 0 ? (
               <div className="text-sm text-muted-foreground glass rounded-xl p-6">No runs yet.</div>
             ) : (
               <div className="grid gap-3">
-                {runs.map((r) => {
+                {projectRuns.map((r) => {
                   const test = tests.find((t) => t.id === r.test_id);
                   return (
                     <div key={r.id} className="glass rounded-xl p-4 shadow-card">
