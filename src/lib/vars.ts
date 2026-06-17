@@ -35,3 +35,42 @@ export function specVars(spec: any): Vars {
   for (const [k, val] of Object.entries(v)) out[k] = String(val ?? "");
   return out;
 }
+
+export const SECRET_MASK = "••••••";
+
+// The concrete (non-empty) values of variables marked secret in spec.secrets.
+export function secretValues(spec: any): string[] {
+  const vars = specVars(spec);
+  const names: string[] = Array.isArray(spec?.secrets) ? spec.secrets : [];
+  return names
+    .map((n) => vars[n])
+    .filter((v): v is string => typeof v === "string" && v.length > 0);
+}
+
+// Deep-replaces any occurrence of a secret value with the mask, so substituted secrets
+// never end up stored in run records. Uses split/join (no regex escaping needed).
+export function maskSecrets<T>(value: T, secrets: string[]): T {
+  // Skip whitespace-only values (masking those is pure corruption, no security value), and
+  // mask longest-first so a secret that is a prefix of another can't leave a partial tail.
+  const list = [...new Set(secrets.filter((s) => s.trim().length > 0))].sort(
+    (a, b) => b.length - a.length,
+  );
+  if (!list.length) return value;
+  if (typeof value === "string") {
+    let out: string = value;
+    for (const s of list) out = out.split(s).join(SECRET_MASK);
+    return out as unknown as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((v) => maskSecrets(v, list)) as unknown as T;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === "__proto__") continue;
+      out[k] = maskSecrets(v, list);
+    }
+    return out as unknown as T;
+  }
+  return value;
+}

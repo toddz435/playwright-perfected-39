@@ -5,7 +5,7 @@
 import { runBrowserSteps } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
-import { interpolate, specVars } from "@/lib/vars";
+import { interpolate, specVars, secretValues, maskSecrets } from "@/lib/vars";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Accepts either the token-scoped (RLS) client or the service-role admin client.
@@ -71,6 +71,7 @@ export async function executeTest(
   // Substitute {{variables}} into a working copy for execution. The ORIGINAL spec is kept
   // for self-stabilization persistence so {{vars}} stay in the saved test.
   const vars = specVars(test.spec);
+  const secrets = secretValues(test.spec);
 
   if (test.type === "api") {
     const requests = interpolate((test.spec?.requests || []) as any[], vars);
@@ -119,16 +120,27 @@ export async function executeTest(
     const steps = (test.spec?.steps || []) as any[]; // original (keeps {{vars}})
     const runSteps = interpolate(steps, vars); // substituted copy for this run
     const aiHealing = test.spec?.aiHealing !== false;
-    const result = await runBrowserSteps(runSteps, {
-      startIdx,
-      heal: aiHealing ? healSelector : undefined,
-    });
+    // Mask secret values out of everything sent to the LLM healer (the substituted value,
+    // the page HTML, and the selector) so secrets never leave for an external model.
+    const heal = aiHealing
+      ? (a: any) =>
+          healSelector({
+            selector: maskSecrets(a.selector, secrets),
+            action: a.action,
+            value: maskSecrets(a.value, secrets),
+            html: maskSecrets(a.html, secrets),
+          })
+      : undefined;
+    const result = await runBrowserSteps(runSteps, { startIdx, heal });
     stepResults.push(...result.steps);
     if (result.status === "failed") status = "failed";
     // Recover against the ORIGINAL steps so persisted locators retain any {{vars}}.
     const { steps: stabilized, changed } = applyRecoveries(steps, result.steps);
     if (changed > 0) stabilizedSteps = stabilized;
   }
+
+  // Mask secret-variable values so substituted secrets are never stored in the run record.
+  const safeSteps = maskSecrets(stepResults, secrets);
 
   const { data: run, error: rErr } = await sb
     .from("runs")
@@ -139,13 +151,13 @@ export async function executeTest(
       started_at: startedAt,
       finished_at: new Date().toISOString(),
       duration_ms: Date.now() - t0,
-      steps: stepResults,
+      steps: safeSteps,
       summary: {
         type: test.type,
-        total: stepResults.length,
-        passed: stepResults.filter((s) => s.status === "passed").length,
-        healed: stepResults.filter((s) => s.status === "healed").length,
-        failed: stepResults.filter((s) => s.status === "failed").length,
+        total: safeSteps.length,
+        passed: safeSteps.filter((s: any) => s.status === "passed").length,
+        healed: safeSteps.filter((s: any) => s.status === "healed").length,
+        failed: safeSteps.filter((s: any) => s.status === "failed").length,
         ...(opts.scheduled ? { scheduled: true } : {}),
       },
     })
