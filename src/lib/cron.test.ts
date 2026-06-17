@@ -1,5 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { matches, isDue } from "./cron";
+import { matches, isDue, buildCronFromLocal } from "./cron";
+
+describe("buildCronFromLocal", () => {
+  it("converts a local daily time to a UTC cron (UTC-5)", () => {
+    expect(buildCronFromLocal("14:30", [], 300)).toBe("30 19 * * *");
+  });
+  it("keeps weekdays when the conversion doesn't cross midnight (UTC+2)", () => {
+    expect(buildCronFromLocal("23:00", [1], -120)).toBe("0 21 * * 1");
+  });
+  it("rolls the day forward when local→UTC crosses midnight", () => {
+    expect(buildCronFromLocal("23:30", [6], 60)).toBe("30 0 * * 0");
+  });
+  it("rolls the day backward when UTC is the previous day", () => {
+    expect(buildCronFromLocal("00:30", [0], -120)).toBe("30 22 * * 6");
+  });
+  it("dedupes/sorts weekdays and defaults to every day when none chosen", () => {
+    expect(buildCronFromLocal("09:00", [], 0)).toBe("0 9 * * *");
+    expect(buildCronFromLocal("09:00", [5, 1, 3], 0)).toBe("0 9 * * 1,3,5");
+  });
+});
 
 describe("matches", () => {
   it("wildcard matches any value", () => {

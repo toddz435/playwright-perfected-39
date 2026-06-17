@@ -19,6 +19,25 @@ export function matches(field: string, value: number): boolean {
   return false;
 }
 
+// Builds a 5-field UTC cron from a LOCAL 24h time + chosen weekdays. isDue() evaluates in
+// UTC, so we convert here. offsetMin is Date.prototype.getTimezoneOffset() (minutes to ADD
+// to local to reach UTC; e.g. UTC-5 → +300). days are local weekday numbers (0=Sun..6=Sat);
+// an empty list means every day. Day-rollover from the conversion shifts the weekdays too.
+export function buildCronFromLocal(timeHHMM: string, days: number[], offsetMin: number): string {
+  const [h, m] = timeHHMM.split(":").map((n) => parseInt(n, 10));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return "0 9 * * *";
+  const utcTotal = h * 60 + m + offsetMin;
+  const dayShift = Math.floor(utcTotal / 1440); // -1, 0, or +1
+  const utcMin = ((utcTotal % 1440) + 1440) % 1440;
+  const HH = Math.floor(utcMin / 60);
+  const MM = utcMin % 60;
+  if (!days.length) return `${MM} ${HH} * * *`;
+  const utcDays = [...new Set(days.map((d) => (((d + dayShift) % 7) + 7) % 7))].sort(
+    (a, b) => a - b,
+  );
+  return `${MM} ${HH} * * ${utcDays.join(",")}`;
+}
+
 export function isDue(cron: string, now: Date): boolean {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return false;
