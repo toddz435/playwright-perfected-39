@@ -6,9 +6,10 @@ import { apiCall } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Wand2, Sparkles, Save } from "lucide-react";
+import { Loader2, Wand2, Sparkles, Save, CircleDot } from "lucide-react";
 import { locatorLabel } from "@/lib/locator";
 
 export const Route = createFileRoute("/_authenticated/codegen")({
@@ -34,6 +35,8 @@ function Codegen() {
   const [script, setScript] = useState(SAMPLE);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [recordUrl, setRecordUrl] = useState("");
+  const [recording, setRecording] = useState(false);
 
   useEffect(() => {
     supabase
@@ -45,6 +48,23 @@ function Codegen() {
         if (data?.[0]) setProjectId(data[0].id);
       });
   }, []);
+
+  const record = async () => {
+    if (!/^https?:\/\//i.test(recordUrl.trim()))
+      return toast.error("Enter a URL starting with http(s)://");
+    setRecording(true);
+    setResult(null);
+    try {
+      // Long-running: a real browser window opens on this machine; resolves when closed.
+      const r = await apiCall<any>("/api/protected/record-codegen", { url: recordUrl.trim() });
+      if (!r.script?.trim()) return toast.error("Nothing was recorded.");
+      setScript(r.script);
+      toast.success("Recording captured — review the script, then Convert to a resilient test.");
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setRecording(false);
+  };
 
   const convert = async () => {
     if (!script.trim()) return toast.error("Paste a script first.");
@@ -83,10 +103,42 @@ function Codegen() {
       <header>
         <h1 className="text-3xl font-bold tracking-tight">Resilient Codegen</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Paste a recorded Playwright script. Testrify rewrites brittle locators into
-          role/text/label-based ones that survive refactors.
+          Record a flow in a real browser (or paste a Playwright script). Testrify rewrites brittle
+          locators into role/text/label-based ones that survive refactors.
         </p>
       </header>
+
+      {/* Record a flow */}
+      <section className="glass rounded-2xl p-6 shadow-card space-y-3">
+        <Label className="text-xs text-muted-foreground flex items-center gap-1">
+          <CircleDot className="h-3.5 w-3.5 text-destructive" /> RECORD A FLOW
+        </Label>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Input
+            value={recordUrl}
+            onChange={(e) => setRecordUrl(e.target.value)}
+            placeholder="https://your-app.com/login"
+            className="bg-input/50 font-mono text-sm"
+            onKeyDown={(e) => e.key === "Enter" && !recording && record()}
+          />
+          <Button disabled={recording} onClick={record} className="shrink-0">
+            {recording ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Recording…
+              </>
+            ) : (
+              <>
+                <CircleDot className="h-4 w-4 mr-2" /> Record
+              </>
+            )}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {recording
+            ? "A browser window opened on this machine — interact with your app, then close the window to finish."
+            : "Opens a real Chromium window locally; your clicks become test steps. (Runs on the local server only.)"}
+        </p>
+      </section>
 
       <div className="grid lg:grid-cols-2 gap-4">
         <section className="glass rounded-2xl p-6 shadow-card space-y-3">
