@@ -7,7 +7,11 @@ const TOKEN = /\{\{\s*([\w.-]+)\s*\}\}/g;
 
 export function interpolate<T>(value: T, vars: Vars): T {
   if (typeof value === "string") {
-    return value.replace(TOKEN, (m, k) => (k in vars ? String(vars[k]) : m)) as unknown as T;
+    // hasOwnProperty (not `k in vars`) so {{constructor}}/{{toString}}/etc. don't resolve
+    // to inherited Object.prototype members — unknown vars stay untouched.
+    return value.replace(TOKEN, (m, k) =>
+      Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m,
+    ) as unknown as T;
   }
   if (Array.isArray(value)) {
     return value.map((v) => interpolate(v, vars)) as unknown as T;
@@ -15,6 +19,7 @@ export function interpolate<T>(value: T, vars: Vars): T {
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === "__proto__") continue; // never let a data key corrupt the result's prototype
       out[k] = interpolate(v, vars);
     }
     return out as unknown as T;

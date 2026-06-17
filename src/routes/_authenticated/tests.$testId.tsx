@@ -73,7 +73,7 @@ function TestDetail() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<any[]>([]);
   const [savingSteps, setSavingSteps] = useState(false);
-  const [varRows, setVarRows] = useState<{ name: string; value: string }[]>([]);
+  const [varRows, setVarRows] = useState<{ name: string; value: string; _k: string }[]>([]);
   const [savingVars, setSavingVars] = useState(false);
 
   const refresh = async () => {
@@ -94,18 +94,30 @@ function TestDetail() {
   // Load variables into editable rows whenever the test loads/changes.
   useEffect(() => {
     if (test)
-      setVarRows(Object.entries(specVars(test.spec)).map(([name, value]) => ({ name, value })));
+      setVarRows(
+        Object.entries(specVars(test.spec)).map(([name, value]) => ({
+          name,
+          value,
+          _k: crypto.randomUUID(),
+        })),
+      );
   }, [test]);
 
-  const addVar = () => setVarRows((r) => [...r, { name: "", value: "" }]);
+  const addVar = () => setVarRows((r) => [...r, { name: "", value: "", _k: crypto.randomUUID() }]);
   const removeVar = (i: number) => setVarRows((r) => r.filter((_, idx) => idx !== i));
   const setVar = (i: number, patch: Partial<{ name: string; value: string }>) =>
     setVarRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const saveVars = async () => {
     const variables: Record<string, string> = {};
+    const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
     for (const { name, value } of varRows) {
       const n = name.trim();
-      if (n) variables[n] = value;
+      if (!n) continue;
+      if (!/^[\w.-]+$/.test(n) || RESERVED.has(n))
+        return toast.error(
+          `Invalid variable name "${n}" — use letters, numbers, . _ - (no spaces).`,
+        );
+      variables[n] = value;
     }
     setSavingVars(true);
     const { error } = await supabase
@@ -538,7 +550,7 @@ function TestDetail() {
             <div className="text-xs text-muted-foreground">No variables yet.</div>
           )}
           {varRows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2">
+            <div key={row._k} className="flex items-center gap-2">
               <Input
                 value={row.name}
                 onChange={(e) => setVar(i, { name: e.target.value })}

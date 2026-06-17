@@ -13,6 +13,12 @@ describe("interpolate", () => {
     expect(interpolate("{{missing}}/x", { other: "1" })).toBe("{{missing}}/x");
   });
 
+  it("does not resolve inherited Object keys (constructor/toString/__proto__)", () => {
+    expect(interpolate("{{constructor}}", {})).toBe("{{constructor}}");
+    expect(interpolate("{{toString}}", {})).toBe("{{toString}}");
+    expect(interpolate("{{__proto__}}", {})).toBe("{{__proto__}}");
+  });
+
   it("recurses into arrays and objects (e.g. steps)", () => {
     const steps = [
       { action: "goto", target: "{{baseUrl}}/login" },
