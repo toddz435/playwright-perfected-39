@@ -22,6 +22,12 @@ import {
   ChevronRight,
   Clock,
   Trash2,
+  Pencil,
+  ArrowUp,
+  ArrowDown,
+  Plus,
+  Save,
+  X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -29,6 +35,23 @@ export const Route = createFileRoute("/_authenticated/tests/$testId")({
   head: () => ({ meta: [{ title: "Test — Testrify" }] }),
   component: TestDetail,
 });
+
+// Browser step actions the engine supports (see playwright-runner.server.ts).
+const STEP_ACTIONS = [
+  "goto",
+  "click",
+  "fill",
+  "press",
+  "expect_visible",
+  "expect_text",
+  "expect_value",
+  "expect_count",
+  "expect_url_contains",
+];
+// Actions whose "target" is a URL/substring rather than a locator.
+const URL_ACTIONS = new Set(["goto", "expect_url_contains"]);
+// Actions that take a value.
+const VALUE_ACTIONS = new Set(["fill", "press", "expect_text", "expect_value", "expect_count"]);
 
 function TestDetail() {
   const { testId } = Route.useParams();
@@ -45,6 +68,9 @@ function TestDetail() {
   const [hardenReport, setHardenReport] = useState<any[] | null>(null);
   const [advising, setAdvising] = useState(false);
   const [advisories, setAdvisories] = useState<any[] | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<any[]>([]);
+  const [savingSteps, setSavingSteps] = useState(false);
 
   const refresh = async () => {
     const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
@@ -158,6 +184,40 @@ function TestDetail() {
       toast.error(e.message);
     }
     setHardening(false);
+  };
+
+  // --- Step editor ---
+  const startEdit = () => {
+    setDraft((test.spec?.steps || []).map((s: any) => ({ ...s })));
+    setEditing(true);
+  };
+  const patchStep = (i: number, patch: any) =>
+    setDraft((d) => d.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  // Editing a locator stores a raw target string and drops the structured locator +
+  // fallbacks for that step (a manual override).
+  const setStepTarget = (i: number, value: string) =>
+    patchStep(i, { target: value, locator: undefined, fallbacks: undefined });
+  const moveStep = (i: number, dir: -1 | 1) =>
+    setDraft((d) => {
+      const j = i + dir;
+      if (j < 0 || j >= d.length) return d;
+      const copy = [...d];
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+      return copy;
+    });
+  const removeStep = (i: number) => setDraft((d) => d.filter((_, idx) => idx !== i));
+  const addStep = () => setDraft((d) => [...d, { action: "click", target: "" }]);
+  const saveSteps = async () => {
+    setSavingSteps(true);
+    const { error } = await supabase
+      .from("tests")
+      .update({ spec: { ...test.spec, steps: draft } })
+      .eq("id", testId);
+    setSavingSteps(false);
+    if (error) return toast.error(error.message);
+    toast.success("Steps saved");
+    setEditing(false);
+    refresh();
   };
 
   const deleteTest = async () => {
@@ -387,77 +447,178 @@ function TestDetail() {
 
       {/* Steps with inline healing */}
       <section className="glass rounded-2xl p-6 shadow-card">
-        <h2 className="font-semibold mb-4 flex items-center gap-2">
-          <ChevronRight className="h-4 w-4" /> Steps ({items.length})
-        </h2>
-        <div className="space-y-2">
-          {items.map((s: any, i: number) => (
-            <div key={i} className="rounded-lg border border-border bg-surface/40 p-3">
-              <div className="flex items-center gap-3 font-mono text-sm">
-                <span className="text-xs text-muted-foreground w-6">{i + 1}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {isApi ? s.method : s.action}
-                </Badge>
-                <span className="flex-1 truncate">
-                  {isApi ? s.url : s.locator ? locatorLabel(s.locator) : s.target}
-                </span>
-                {!isApi && s.value && (
-                  <span className="text-xs text-muted-foreground">"{s.value}"</span>
-                )}
-                {!isApi && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={healing === i}
-                    onClick={() => healStep(i)}
-                  >
-                    {healing === i ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <>
-                        <Wand2 className="h-3.5 w-3.5 mr-1" /> Heal
-                      </>
-                    )}
-                  </Button>
-                )}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold flex items-center gap-2">
+            <ChevronRight className="h-4 w-4" /> Steps ({editing ? draft.length : items.length})
+          </h2>
+          {!isApi &&
+            (editing ? (
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                  <X className="h-3.5 w-3.5 mr-1" /> Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={savingSteps}
+                  onClick={saveSteps}
+                  className="bg-gradient-primary border-0"
+                >
+                  {savingSteps ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5 mr-1" />
+                  )}{" "}
+                  Save steps
+                </Button>
               </div>
-              {!isApi && s.rationale && (
-                <div className="text-xs text-muted-foreground mt-1 ml-9">{s.rationale}</div>
-              )}
-              {healed[i] && (
-                <div className="mt-3 ml-9 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
-                  <div className="text-xs text-primary-glow mb-1 flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" /> AI HEALED LOCATOR
-                  </div>
-                  <div className="font-mono text-xs mb-2">
-                    <span className="text-muted-foreground line-through">
-                      {s.locator ? locatorLabel(s.locator) : s.target}
-                    </span>{" "}
-                    → <span className="text-success">{healed[i].resilient}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground mb-2">{healed[i].rationale}</div>
-                  {healed[i].fallbacks?.length > 0 && (
-                    <div className="text-xs text-muted-foreground mb-2">
-                      Fallbacks:{" "}
-                      {healed[i].fallbacks.map((f: string) => (
-                        <code key={f} className="mx-1">
-                          {f}
-                        </code>
-                      ))}
-                    </div>
-                  )}
+            ) : (
+              <Button size="sm" variant="outline" onClick={startEdit}>
+                <Pencil className="h-3.5 w-3.5 mr-1" /> Edit steps
+              </Button>
+            ))}
+        </div>
+        {editing && !isApi ? (
+          <div className="space-y-2">
+            {draft.map((s: any, i: number) => (
+              <div
+                key={i}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface/40 p-2"
+              >
+                <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}</span>
+                <select
+                  value={s.action}
+                  onChange={(e) => patchStep(i, { action: e.target.value })}
+                  className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
+                >
+                  {STEP_ACTIONS.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  value={s.locator ? locatorLabel(s.locator) : (s.target ?? "")}
+                  onChange={(e) => setStepTarget(i, e.target.value)}
+                  placeholder={
+                    URL_ACTIONS.has(s.action)
+                      ? "https://… or /path"
+                      : "locator (css, text=…, role=…)"
+                  }
+                  className="bg-input/50 text-xs font-mono flex-1 min-w-[180px]"
+                />
+                {VALUE_ACTIONS.has(s.action) && (
+                  <Input
+                    value={s.value ?? ""}
+                    onChange={(e) => patchStep(i, { value: e.target.value })}
+                    placeholder="value"
+                    className="bg-input/50 text-xs font-mono w-32"
+                  />
+                )}
+                <div className="flex items-center">
                   <Button
-                    size="sm"
-                    className="bg-gradient-primary border-0"
-                    onClick={() => applyHeal(i)}
+                    size="icon"
+                    variant="ghost"
+                    disabled={i === 0}
+                    onClick={() => moveStep(i, -1)}
+                    title="Move up"
                   >
-                    Apply
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    disabled={i === draft.length - 1}
+                    onClick={() => moveStep(i, 1)}
+                    title="Move down"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeStep(i)}
+                    title="Remove step"
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+            <Button size="sm" variant="outline" onClick={addStep}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add step
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {items.map((s: any, i: number) => (
+              <div key={i} className="rounded-lg border border-border bg-surface/40 p-3">
+                <div className="flex items-center gap-3 font-mono text-sm">
+                  <span className="text-xs text-muted-foreground w-6">{i + 1}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {isApi ? s.method : s.action}
+                  </Badge>
+                  <span className="flex-1 truncate">
+                    {isApi ? s.url : s.locator ? locatorLabel(s.locator) : s.target}
+                  </span>
+                  {!isApi && s.value && (
+                    <span className="text-xs text-muted-foreground">"{s.value}"</span>
+                  )}
+                  {!isApi && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={healing === i}
+                      onClick={() => healStep(i)}
+                    >
+                      {healing === i ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <Wand2 className="h-3.5 w-3.5 mr-1" /> Heal
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+                {!isApi && s.rationale && (
+                  <div className="text-xs text-muted-foreground mt-1 ml-9">{s.rationale}</div>
+                )}
+                {healed[i] && (
+                  <div className="mt-3 ml-9 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                    <div className="text-xs text-primary-glow mb-1 flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" /> AI HEALED LOCATOR
+                    </div>
+                    <div className="font-mono text-xs mb-2">
+                      <span className="text-muted-foreground line-through">
+                        {s.locator ? locatorLabel(s.locator) : s.target}
+                      </span>{" "}
+                      → <span className="text-success">{healed[i].resilient}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mb-2">{healed[i].rationale}</div>
+                    {healed[i].fallbacks?.length > 0 && (
+                      <div className="text-xs text-muted-foreground mb-2">
+                        Fallbacks:{" "}
+                        {healed[i].fallbacks.map((f: string) => (
+                          <code key={f} className="mx-1">
+                            {f}
+                          </code>
+                        ))}
+                      </div>
+                    )}
+                    <Button
+                      size="sm"
+                      className="bg-gradient-primary border-0"
+                      onClick={() => applyHeal(i)}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Run history */}
