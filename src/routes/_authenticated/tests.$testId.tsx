@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { locatorLabel } from "@/lib/locator";
 import { advisoriesToMarkdown } from "@/lib/advisory-format";
+import { specVars } from "@/lib/vars";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -28,6 +29,7 @@ import {
   Plus,
   Save,
   X,
+  Braces,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -71,6 +73,8 @@ function TestDetail() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<any[]>([]);
   const [savingSteps, setSavingSteps] = useState(false);
+  const [varRows, setVarRows] = useState<{ name: string; value: string }[]>([]);
+  const [savingVars, setSavingVars] = useState(false);
 
   const refresh = async () => {
     const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
@@ -87,6 +91,32 @@ function TestDetail() {
   useEffect(() => {
     refresh();
   }, [testId]); // eslint-disable-line
+  // Load variables into editable rows whenever the test loads/changes.
+  useEffect(() => {
+    if (test)
+      setVarRows(Object.entries(specVars(test.spec)).map(([name, value]) => ({ name, value })));
+  }, [test]);
+
+  const addVar = () => setVarRows((r) => [...r, { name: "", value: "" }]);
+  const removeVar = (i: number) => setVarRows((r) => r.filter((_, idx) => idx !== i));
+  const setVar = (i: number, patch: Partial<{ name: string; value: string }>) =>
+    setVarRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const saveVars = async () => {
+    const variables: Record<string, string> = {};
+    for (const { name, value } of varRows) {
+      const n = name.trim();
+      if (n) variables[n] = value;
+    }
+    setSavingVars(true);
+    const { error } = await supabase
+      .from("tests")
+      .update({ spec: { ...test.spec, variables } })
+      .eq("id", testId);
+    setSavingVars(false);
+    if (error) return toast.error(error.message);
+    toast.success("Variables saved");
+    refresh();
+  };
 
   const run = async (resumeFromStep?: number) => {
     setRunning(true);
@@ -476,6 +506,68 @@ function TestDetail() {
           )}
         </section>
       )}
+
+      {/* Variables */}
+      <section className="glass rounded-2xl p-6 shadow-card">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-semibold flex items-center gap-2">
+            <Braces className="h-4 w-4" /> Variables
+          </h2>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={savingVars}
+            onClick={saveVars}
+            className="bg-gradient-primary border-0"
+          >
+            {savingVars ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5 mr-1" />
+            )}{" "}
+            Save variables
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          Reference these as <span className="font-mono">{"{{name}}"}</span> in any locator, value,
+          or URL — substituted at run time (e.g.{" "}
+          <span className="font-mono">{"{{baseUrl}}/login"}</span>).
+        </p>
+        <div className="space-y-2">
+          {varRows.length === 0 && (
+            <div className="text-xs text-muted-foreground">No variables yet.</div>
+          )}
+          {varRows.map((row, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                value={row.name}
+                onChange={(e) => setVar(i, { name: e.target.value })}
+                placeholder="name"
+                className="bg-input/50 text-xs font-mono w-40"
+              />
+              <span className="text-muted-foreground text-xs">=</span>
+              <Input
+                value={row.value}
+                onChange={(e) => setVar(i, { value: e.target.value })}
+                placeholder="value"
+                className="bg-input/50 text-xs font-mono flex-1 min-w-[160px]"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => removeVar(i)}
+                title="Remove variable"
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+          <Button size="sm" variant="outline" onClick={addVar}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add variable
+          </Button>
+        </div>
+      </section>
 
       {/* Steps with inline healing */}
       <section className="glass rounded-2xl p-6 shadow-card">

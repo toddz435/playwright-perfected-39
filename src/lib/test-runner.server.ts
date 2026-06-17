@@ -5,6 +5,7 @@
 import { runBrowserSteps } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
+import { interpolate, specVars } from "@/lib/vars";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Accepts either the token-scoped (RLS) client or the service-role admin client.
@@ -67,8 +68,12 @@ export async function executeTest(
   let status: "passed" | "failed" = "passed";
   let stabilizedSteps: any[] | null = null;
 
+  // Substitute {{variables}} into a working copy for execution. The ORIGINAL spec is kept
+  // for self-stabilization persistence so {{vars}} stay in the saved test.
+  const vars = specVars(test.spec);
+
   if (test.type === "api") {
-    const requests = (test.spec?.requests || []) as any[];
+    const requests = interpolate((test.spec?.requests || []) as any[], vars);
     for (let i = 0; i < requests.length; i++) {
       if (i < startIdx) {
         stepResults.push({ idx: i, status: "skipped", name: requests[i].name });
@@ -111,14 +116,16 @@ export async function executeTest(
   } else {
     // Browser: real Playwright execution. AI healing is on unless the test opts out via
     // spec.aiHealing = false (it sends redacted page HTML to the LLM on a locator failure).
-    const steps = (test.spec?.steps || []) as any[];
+    const steps = (test.spec?.steps || []) as any[]; // original (keeps {{vars}})
+    const runSteps = interpolate(steps, vars); // substituted copy for this run
     const aiHealing = test.spec?.aiHealing !== false;
-    const result = await runBrowserSteps(steps, {
+    const result = await runBrowserSteps(runSteps, {
       startIdx,
       heal: aiHealing ? healSelector : undefined,
     });
     stepResults.push(...result.steps);
     if (result.status === "failed") status = "failed";
+    // Recover against the ORIGINAL steps so persisted locators retain any {{vars}}.
     const { steps: stabilized, changed } = applyRecoveries(steps, result.steps);
     if (changed > 0) stabilizedSteps = stabilized;
   }
