@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { apiCall } from "@/lib/api-client";
@@ -21,6 +21,7 @@ import {
   Lightbulb,
   ChevronRight,
   Clock,
+  Trash2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/_authenticated/tests/$testId")({
 
 function TestDetail() {
   const { testId } = Route.useParams();
+  const nav = useNavigate();
   const [test, setTest] = useState<any>(null);
   const [runs, setRuns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,6 +160,17 @@ function TestDetail() {
     setHardening(false);
   };
 
+  const deleteTest = async () => {
+    if (!window.confirm(`Delete test "${test.name}" and all its runs? This cannot be undone.`))
+      return;
+    // schedules have no FK to tests, so remove them explicitly; runs cascade.
+    await supabase.from("schedules").delete().eq("test_id", testId);
+    const { error } = await supabase.from("tests").delete().eq("id", testId);
+    if (error) return toast.error(error.message);
+    toast.success("Test deleted");
+    nav({ to: "/dashboard" });
+  };
+
   const toggleHealing = async (on: boolean) => {
     const newSpec = { ...test.spec, aiHealing: on };
     const { error } = await supabase.from("tests").update({ spec: newSpec }).eq("id", testId);
@@ -246,6 +259,15 @@ function TestDetail() {
                 <Play className="h-4 w-4 mr-1" />
               )}{" "}
               Run from start
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={deleteTest}
+              title="Delete this test and its runs"
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </div>
