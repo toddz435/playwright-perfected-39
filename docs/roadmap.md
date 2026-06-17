@@ -53,3 +53,14 @@ honest engineering realities and the security gates that apply to each.
 - **Screenshots / artifacts** → access-controlled storage scoped to the owner (RLS).
 - **Load testing** → ownership verification + consent + concurrency/duration caps (above).
 - **Secrets** → already: `.env` ignored, anon key behind RLS, no service-role in the repo.
+
+### Recorder hardening still owed before a cloud runner
+The in-app recorder (`record-codegen`) is gated to authenticated users and kills its
+process group on timeout/disconnect, but these remain TODO before it runs anywhere but a
+trusted local machine:
+- **SSRF / private-IP block** on the recorded URL (currently allowed, because pointing at
+  your own `localhost` is a legitimate local-recording use).
+- **Per-user concurrency cap** (each recording spawns a headed browser + holds a request).
+- **Secret variables** so recorded `fill()` values (passwords) become `{{secrets}}` rather
+  than being stored in plaintext in the test spec. Ties into Phase 2 (variables) + a secrets
+  store. **Until then, don't record real production credentials.**

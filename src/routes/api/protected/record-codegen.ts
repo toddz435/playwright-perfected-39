@@ -11,7 +11,12 @@ import { join } from "node:path";
 //
 // LOCAL / Node-runner only — opens a headed browser on the machine running the server, and
 // cannot run in the Cloudflare Worker. The request stays open until the user closes the
-// recorder (or the timeout fires).
+// recorder (or the timeout fires). The child is launched in its own process group so the
+// whole tree (codegen + browser) can be killed on timeout or client disconnect.
+//
+// SECURITY (tracked in docs/roadmap.md): this is gated to authenticated users on a LOCAL
+// runner. Before a cloud runner ships, add: a private-IP/SSRF block on `url`, a per-user
+// concurrency cap, and secret-variable handling so recorded fill() values aren't stored raw.
 const RECORD_TIMEOUT_MS = 15 * 60 * 1000;
 
 export const Route = createFileRoute("/api/protected/record-codegen")({
@@ -32,41 +37,81 @@ export const Route = createFileRoute("/api/protected/record-codegen")({
           const bin = join(process.cwd(), "node_modules/.bin/playwright");
 
           const script = await new Promise<string>((resolve, reject) => {
+            // detached → its own process group, so we can kill codegen AND its browser.
             const child = spawn(
               bin,
               [
                 "codegen",
-                url,
-                "-o",
-                outFile,
                 "--target",
                 "playwright-test",
-                // Prefer data-testid selectors when present — matches our locator model.
                 "--test-id-attribute",
                 "data-testid",
+                "-o",
+                outFile,
+                "--", // end of options: the URL is a positional arg, never a flag
+                url,
               ],
-              { stdio: "ignore" },
+              { detached: true, stdio: "ignore" },
             );
-            const timer = setTimeout(() => {
-              child.kill();
-              reject(new Error("Recording timed out."));
-            }, RECORD_TIMEOUT_MS);
-            child.on("error", (e) => {
+
+            let settled = false;
+            const cleanupFile = () => {
+              unlink(outFile).catch(() => {});
+            };
+            const killTree = () => {
+              try {
+                if (child.pid) process.kill(-child.pid, "SIGTERM");
+              } catch {
+                try {
+                  child.kill();
+                } catch {
+                  /* already gone */
+                }
+              }
+            };
+            const onAbort = () => end(() => reject(new Error("Recording cancelled.")), true);
+            const timer = setTimeout(
+              () => end(() => reject(new Error("Recording timed out.")), true),
+              RECORD_TIMEOUT_MS,
+            );
+
+            // Single terminal path: clears the timer/listener, optionally kills the tree,
+            // and (except on a clean read) removes the temp file.
+            function end(action: () => void, killAndClean = false) {
+              if (settled) return;
+              settled = true;
               clearTimeout(timer);
-              reject(
-                new Error(
-                  `Could not launch the recorder (${e.message}). Recording runs on the local server only.`,
-                ),
-              );
-            });
+              request.signal?.removeEventListener?.("abort", onAbort);
+              if (killAndClean) {
+                killTree();
+                cleanupFile();
+              }
+              action();
+            }
+
+            request.signal?.addEventListener?.("abort", onAbort);
+
+            child.on("error", (e) =>
+              end(() => {
+                cleanupFile();
+                reject(
+                  new Error(
+                    `Could not launch the recorder (${e.message}). Recording runs on the local server only.`,
+                  ),
+                );
+              }),
+            );
             child.on("close", async () => {
-              clearTimeout(timer);
+              if (settled) return;
               try {
                 const s = await readFile(outFile, "utf8");
-                await unlink(outFile).catch(() => {});
-                resolve(s);
+                cleanupFile();
+                end(() => resolve(s));
               } catch {
-                reject(new Error("No script was captured — did the recording have any actions?"));
+                cleanupFile();
+                end(() =>
+                  reject(new Error("No script was captured — did the recording have any actions?")),
+                );
               }
             });
           });

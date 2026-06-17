@@ -82,6 +82,7 @@ function Codegen() {
 
     // Resolve the target project — either an existing one, or a new one to create.
     let targetProjectId = projectId;
+    let createdProjectId: string | null = null;
     if (projectId === "__new__") {
       if (!newProjectName.trim()) return toast.error("Name the new project.");
       const { data: proj, error: pErr } = await supabase
@@ -91,6 +92,7 @@ function Codegen() {
         .single();
       if (pErr || !proj) return toast.error(pErr?.message || "Could not create project");
       targetProjectId = proj.id;
+      createdProjectId = proj.id;
     }
     if (!targetProjectId) return toast.error("Pick or create a project.");
 
@@ -106,7 +108,11 @@ function Codegen() {
       })
       .select()
       .single();
-    if (error) return toast.error(error.message);
+    if (error) {
+      // Don't leave a freshly-created project orphaned if the test insert failed.
+      if (createdProjectId) await supabase.from("projects").delete().eq("id", createdProjectId);
+      return toast.error(error.message);
+    }
     toast.success("Test saved");
     nav({ to: "/tests/$testId", params: { testId: data.id } });
   };

@@ -102,17 +102,27 @@ function Dashboard() {
       .select("*")
       .order("created_at", { ascending: false });
     setTests(ts || []);
-    const { data: rs } = await supabase
-      .from("runs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
-    setRuns(rs || []);
     setLoading(false);
   };
   useEffect(() => {
     refresh();
   }, []); // eslint-disable-line
+
+  // Recent runs are fetched scoped to the active project (via an inner join on tests),
+  // so a project's runs are never hidden behind a global limit.
+  const loadRuns = (projectId: string | null) => {
+    if (!projectId) return;
+    supabase
+      .from("runs")
+      .select("*, tests!inner(project_id)")
+      .eq("tests.project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => setRuns(data || []));
+  };
+  useEffect(() => {
+    loadRuns(activeProject);
+  }, [activeProject]); // eslint-disable-line
 
   const createProject = async () => {
     if (!pName.trim()) return toast.error("Project name is required");
@@ -165,7 +175,7 @@ function Dashboard() {
     try {
       const { run } = await apiCall<any>("/api/protected/run-test", { testId });
       toast[run.status === "passed" ? "success" : "error"](`Run ${run.status}`);
-      refresh();
+      loadRuns(activeProject);
       if (run.status === "failed") analyzeRun(run);
     } catch (e: any) {
       toast.error(e.message);
