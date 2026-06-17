@@ -61,6 +61,8 @@ trusted local machine:
 - **SSRF / private-IP block** on the recorded URL (currently allowed, because pointing at
   your own `localhost` is a legitimate local-recording use).
 - **Per-user concurrency cap** (each recording spawns a headed browser + holds a request).
-- **Secret variables** so recorded `fill()` values (passwords) become `{{secrets}}` rather
-  than being stored in plaintext in the test spec. Ties into Phase 2 (variables) + a secrets
-  store. **Until then, don't record real production credentials.**
+- **Secret variables** (Phase 2c, done): a variable can be flagged secret — masked in the
+  UI and stripped from run records (`maskSecrets`). Still owed: (a) the value is stored in
+  the test spec jsonb in plaintext — **encryption-at-rest** is a later item; (b) the recorder
+  still emits literal `fill()` values — **auto-converting recorded passwords to `{{secret}}`**
+  is not built yet. **Until those land, don't record real production credentials.**

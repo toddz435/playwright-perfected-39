@@ -30,6 +30,8 @@ import {
   Save,
   X,
   Braces,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -73,8 +75,11 @@ function TestDetail() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<any[]>([]);
   const [savingSteps, setSavingSteps] = useState(false);
-  const [varRows, setVarRows] = useState<{ name: string; value: string; _k: string }[]>([]);
+  const [varRows, setVarRows] = useState<
+    { name: string; value: string; secret: boolean; _k: string }[]
+  >([]);
   const [savingVars, setSavingVars] = useState(false);
+  const [showSecrets, setShowSecrets] = useState(false);
 
   const refresh = async () => {
     const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
@@ -93,24 +98,31 @@ function TestDetail() {
   }, [testId]); // eslint-disable-line
   // Load variables into editable rows whenever the test loads/changes.
   useEffect(() => {
-    if (test)
+    if (test) {
+      const secretNames = new Set<string>(
+        Array.isArray(test.spec?.secrets) ? test.spec.secrets : [],
+      );
       setVarRows(
         Object.entries(specVars(test.spec)).map(([name, value]) => ({
           name,
           value,
+          secret: secretNames.has(name),
           _k: crypto.randomUUID(),
         })),
       );
+    }
   }, [test]);
 
-  const addVar = () => setVarRows((r) => [...r, { name: "", value: "", _k: crypto.randomUUID() }]);
+  const addVar = () =>
+    setVarRows((r) => [...r, { name: "", value: "", secret: false, _k: crypto.randomUUID() }]);
   const removeVar = (i: number) => setVarRows((r) => r.filter((_, idx) => idx !== i));
-  const setVar = (i: number, patch: Partial<{ name: string; value: string }>) =>
+  const setVar = (i: number, patch: Partial<{ name: string; value: string; secret: boolean }>) =>
     setVarRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const saveVars = async () => {
     const variables: Record<string, string> = {};
+    const secrets: string[] = [];
     const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
-    for (const { name, value } of varRows) {
+    for (const { name, value, secret } of varRows) {
       const n = name.trim();
       if (!n) continue;
       if (!/^[\w.-]+$/.test(n) || RESERVED.has(n))
@@ -118,11 +130,12 @@ function TestDetail() {
           `Invalid variable name "${n}" — use letters, numbers, . _ - (no spaces).`,
         );
       variables[n] = value;
+      if (secret) secrets.push(n);
     }
     setSavingVars(true);
     const { error } = await supabase
       .from("tests")
-      .update({ spec: { ...test.spec, variables } })
+      .update({ spec: { ...test.spec, variables, secrets } })
       .eq("id", testId);
     setSavingVars(false);
     if (error) return toast.error(error.message);
@@ -543,7 +556,8 @@ function TestDetail() {
         <p className="text-xs text-muted-foreground mb-3">
           Reference these as <span className="font-mono">{"{{name}}"}</span> in any locator, value,
           or URL — substituted at run time (e.g.{" "}
-          <span className="font-mono">{"{{baseUrl}}/login"}</span>).
+          <span className="font-mono">{"{{baseUrl}}/login"}</span>). Mark a variable{" "}
+          <strong>secret</strong> to mask it here and keep its value out of run records.
         </p>
         <div className="space-y-2">
           {varRows.length === 0 && (
@@ -559,11 +573,23 @@ function TestDetail() {
               />
               <span className="text-muted-foreground text-xs">=</span>
               <Input
+                type={row.secret && !showSecrets ? "password" : "text"}
                 value={row.value}
                 onChange={(e) => setVar(i, { value: e.target.value })}
                 placeholder="value"
                 className="bg-input/50 text-xs font-mono flex-1 min-w-[160px]"
               />
+              <label
+                className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none"
+                title="Secret: masked here and never stored in run records"
+              >
+                <input
+                  type="checkbox"
+                  checked={row.secret}
+                  onChange={(e) => setVar(i, { secret: e.target.checked })}
+                />
+                secret
+              </label>
               <Button
                 size="icon"
                 variant="ghost"
@@ -575,9 +601,22 @@ function TestDetail() {
               </Button>
             </div>
           ))}
-          <Button size="sm" variant="outline" onClick={addVar}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Add variable
-          </Button>
+          <div className="flex items-center justify-between">
+            <Button size="sm" variant="outline" onClick={addVar}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add variable
+            </Button>
+            {varRows.some((r) => r.secret) && (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showSecrets}
+                  onChange={(e) => setShowSecrets(e.target.checked)}
+                />
+                {showSecrets ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}{" "}
+                Show secret values
+              </label>
+            )}
+          </div>
         </div>
       </section>
 

@@ -5,7 +5,7 @@
 import { runBrowserSteps } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
-import { interpolate, specVars } from "@/lib/vars";
+import { interpolate, specVars, secretValues, maskSecrets } from "@/lib/vars";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Accepts either the token-scoped (RLS) client or the service-role admin client.
@@ -130,6 +130,9 @@ export async function executeTest(
     if (changed > 0) stabilizedSteps = stabilized;
   }
 
+  // Mask secret-variable values so substituted secrets are never stored in the run record.
+  const safeSteps = maskSecrets(stepResults, secretValues(test.spec));
+
   const { data: run, error: rErr } = await sb
     .from("runs")
     .insert({
@@ -139,7 +142,7 @@ export async function executeTest(
       started_at: startedAt,
       finished_at: new Date().toISOString(),
       duration_ms: Date.now() - t0,
-      steps: stepResults,
+      steps: safeSteps,
       summary: {
         type: test.type,
         total: stepResults.length,

@@ -1,5 +1,34 @@
 import { describe, it, expect } from "vitest";
-import { interpolate, specVars } from "./vars";
+import { interpolate, specVars, secretValues, maskSecrets, SECRET_MASK } from "./vars";
+
+describe("secretValues + maskSecrets", () => {
+  const spec = {
+    variables: { password: "hunter2", baseUrl: "https://a.com" },
+    secrets: ["password"],
+  };
+
+  it("secretValues returns only the non-empty secret-flagged values", () => {
+    expect(secretValues(spec)).toEqual(["hunter2"]);
+    expect(secretValues({ variables: { a: "1" }, secrets: ["missing"] })).toEqual([]);
+    expect(secretValues({})).toEqual([]);
+  });
+
+  it("masks secret values in nested run-result structures", () => {
+    const steps = [
+      { action: "fill", target: "input#pw", value: "hunter2" },
+      { action: "goto", target: "https://a.com/login" }, // non-secret stays
+    ];
+    expect(maskSecrets(steps, secretValues(spec))).toEqual([
+      { action: "fill", target: "input#pw", value: SECRET_MASK },
+      { action: "goto", target: "https://a.com/login" },
+    ]);
+  });
+
+  it("is a no-op when there are no secrets", () => {
+    const v = { value: "hunter2" };
+    expect(maskSecrets(v, [])).toEqual(v);
+  });
+});
 
 describe("interpolate", () => {
   it("replaces {{name}} in strings (with optional spaces)", () => {
