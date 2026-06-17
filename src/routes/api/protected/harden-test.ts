@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, json } from "@/lib/server-auth.server";
 import { createClient } from "@supabase/supabase-js";
-import { hardenBrowserSteps } from "@/lib/harden.server";
+import { hardenAndSaveTest } from "@/lib/harden.server";
 
 // Phase C: drives the saved browser test through a real browser and rewrites its
 // locators to validated, resilient ones (+ fallbacks), then saves the updated spec.
@@ -31,19 +31,11 @@ export const Route = createFileRoute("/api/protected/harden-test")({
           if (test.type !== "browser")
             return json({ error: "Only browser tests can be hardened" }, { status: 400 });
 
-          const steps = (test.spec?.steps || []) as any[];
-          if (steps.length === 0) return json({ error: "Test has no steps" }, { status: 400 });
+          if (((test.spec?.steps as any[]) || []).length === 0)
+            return json({ error: "Test has no steps" }, { status: 400 });
 
-          const { steps: hardened, report } = await hardenBrowserSteps(steps);
-
-          const newSpec = { ...test.spec, steps: hardened };
-          const { error: uErr } = await sb.from("tests").update({ spec: newSpec }).eq("id", testId);
-          if (uErr) return json({ error: uErr.message }, { status: 500 });
-
-          return json({
-            report,
-            improved: report.filter((r) => r.status === "improved").length,
-          });
+          const { report, improved } = await hardenAndSaveTest(sb, test);
+          return json({ report, improved });
         } catch (e: any) {
           if (e instanceof Response) return e;
           console.error(e);

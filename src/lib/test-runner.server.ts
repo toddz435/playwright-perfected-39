@@ -5,8 +5,10 @@
 import { runBrowserSteps } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-type SupabaseClientLike = any; // token-scoped (RLS) or admin client
+// Accepts either the token-scoped (RLS) client or the service-role admin client.
+type SupabaseClientLike = SupabaseClient;
 
 export type ExecuteResult = { run: any; status: "passed" | "failed" };
 

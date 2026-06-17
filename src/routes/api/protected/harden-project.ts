@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, json } from "@/lib/server-auth.server";
 import { createClient } from "@supabase/supabase-js";
-import { hardenBrowserSteps } from "@/lib/harden.server";
+import { hardenAndSaveTest } from "@/lib/harden.server";
 
 // Hardens every browser test in a project in one pass: runs each against the live site,
 // rewrites locators to validated resilient ones (+ fallbacks), and saves. Returns a
@@ -33,24 +33,13 @@ export const Route = createFileRoute("/api/protected/harden-project")({
 
           const results: any[] = [];
           for (const test of tests) {
-            const steps = (test.spec?.steps || []) as any[];
-            if (steps.length === 0) {
+            if (((test.spec?.steps as any[]) || []).length === 0) {
               results.push({ testId: test.id, name: test.name, skipped: "no steps" });
               continue;
             }
             try {
-              const { steps: hardened, report } = await hardenBrowserSteps(steps);
-              await sb
-                .from("tests")
-                .update({ spec: { ...test.spec, steps: hardened } })
-                .eq("id", test.id);
-              results.push({
-                testId: test.id,
-                name: test.name,
-                improved: report.filter((r) => r.status === "improved").length,
-                kept: report.filter((r) => r.status === "kept").length,
-                unresolved: report.filter((r) => r.status === "unresolved").length,
-              });
+              const { improved, kept, unresolved } = await hardenAndSaveTest(sb, test);
+              results.push({ testId: test.id, name: test.name, improved, kept, unresolved });
             } catch (e: any) {
               results.push({ testId: test.id, name: test.name, error: e?.message || "Failed" });
             }
