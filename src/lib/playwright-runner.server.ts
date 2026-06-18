@@ -7,7 +7,12 @@
 // Worker build never tries to pull Playwright in.
 
 import { type Locator, locatorLabel } from "@/lib/locator";
-import { type StepCondition, conditionLabel, URL_CONDITION_KINDS } from "@/lib/conditions";
+import {
+  type StepCondition,
+  conditionLabel,
+  conditionSrc,
+  URL_CONDITION_KINDS,
+} from "@/lib/conditions";
 
 export type Step = {
   action: string;
@@ -66,24 +71,27 @@ async function evalCondition(page: any, cond: StepCondition): Promise<boolean> {
       }
       return page.url().includes(needle);
     }
-    const src = cond.locator ?? cond.target;
+    const src = conditionSrc(cond);
     if (src == null || (typeof src === "string" && src.trim() === "")) return false;
-    const loc = resolveLocator(page, src).first();
-    switch (cond.kind) {
-      case "visible":
-        return await loc
-          .waitFor({ state: "visible", timeout: CONDITION_SETTLE_MS })
-          .then(() => true)
-          .catch(() => false);
-      case "hidden":
-        return !(await loc.isVisible().catch(() => false));
-      case "exists":
-        return (await resolveLocator(page, src).count().catch(() => 0)) > 0;
-      case "not_exists":
-        return (await resolveLocator(page, src).count().catch(() => 0)) === 0;
-      default:
-        return false;
-    }
+    // Map each element kind to a Playwright waitFor state so all four get a uniform settle
+    // window (no racy single-shot snapshots). attached/detached cover exists/not_exists;
+    // hidden also resolves immediately for a detached element ("act once it's gone").
+    const state =
+      cond.kind === "visible"
+        ? "visible"
+        : cond.kind === "hidden"
+          ? "hidden"
+          : cond.kind === "exists"
+            ? "attached"
+            : cond.kind === "not_exists"
+              ? "detached"
+              : null;
+    if (!state) return false;
+    return await resolveLocator(page, src)
+      .first()
+      .waitFor({ state, timeout: CONDITION_SETTLE_MS })
+      .then(() => true)
+      .catch(() => false);
   } catch {
     return false; // never let a guard break the run — treat as "not met" and skip
   }

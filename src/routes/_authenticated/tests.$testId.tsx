@@ -322,6 +322,9 @@ function TestDetail() {
           delete next.locator;
           delete next.fallbacks;
         }
+        // A condition is evaluated against the page BEFORE the step runs, so it can't guard a
+        // `goto` (there's no destination page yet) — drop it when switching to goto.
+        if (action === "goto") delete next.condition;
         return next;
       }),
     );
@@ -350,6 +353,20 @@ function TestDetail() {
   const patchCondition = (i: number, patch: any) =>
     setDraft((d) =>
       d.map((s, idx) => (idx === i ? { ...s, condition: { ...s.condition, ...patch } } : s)),
+    );
+  // Changing the condition kind across the element↔URL boundary clears the input, since an
+  // element selector and a URL substring aren't interchangeable.
+  const setConditionKind = (i: number, kind: ConditionKind) =>
+    setDraft((d) =>
+      d.map((s, idx) => {
+        if (idx !== i) return s;
+        const crossed =
+          URL_CONDITION_KINDS.has(kind) !== URL_CONDITION_KINDS.has(s.condition?.kind);
+        return {
+          ...s,
+          condition: { ...s.condition, kind, ...(crossed ? { target: "", locator: undefined } : {}) },
+        };
+      }),
     );
   const saveSteps = async () => {
     // Validate before persisting so a broken step can't be saved and fail mid-run.
@@ -779,7 +796,7 @@ function TestDetail() {
                     />
                   )}
                   <div className="flex items-center">
-                    {!s.condition && (
+                    {!s.condition && s.action !== "goto" && (
                       <Button
                         size="icon"
                         variant="ghost"
@@ -825,7 +842,7 @@ function TestDetail() {
                     </span>
                     <select
                       value={s.condition.kind}
-                      onChange={(e) => patchCondition(i, { kind: e.target.value as ConditionKind })}
+                      onChange={(e) => setConditionKind(i, e.target.value as ConditionKind)}
                       className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
                     >
                       {CONDITION_KINDS.map((k) => (

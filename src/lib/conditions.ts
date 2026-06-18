@@ -22,6 +22,11 @@ export type StepCondition = {
   locator?: Locator; // optional structured locator (element kinds)
 };
 
+// The locator source for an element condition: structured locator if present, else the
+// raw target string. Mirrors how the runner resolves a step's locator (`locator ?? target`).
+export const conditionSrc = (c: StepCondition): Locator | string | undefined =>
+  c.locator ?? c.target;
+
 // Human-readable "only if …" label for editor + run history.
 export function conditionLabel(c: StepCondition): string {
   if (URL_CONDITION_KINDS.has(c.kind)) return `only if url contains "${c.target ?? ""}"`;
