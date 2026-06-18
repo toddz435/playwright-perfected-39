@@ -41,7 +41,11 @@ async function runVisualDiffs(
   for (const step of shots) {
     const actual = Buffer.from(step.screenshot, "base64");
     delete step.screenshot; // never persist the raw base64 on the run record
-    const baselinePath = `${ownerId}/${testId}/baseline-${step.idx}.png`;
+    // Key the baseline by the step's stable id so reordering/inserting steps doesn't
+    // re-point it at another screenshot's baseline. Legacy steps (no sid) fall back to
+    // the positional index, preserving any baseline already created under that key.
+    const baselineKey = step.sid ? `sid-${step.sid}` : `baseline-${step.idx}`;
+    const baselinePath = `${ownerId}/${testId}/${baselineKey}.png`;
     try {
       const { data: dl, error: dlErr } = await bucket.download(baselinePath);
       if (!dl) {

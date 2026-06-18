@@ -82,6 +82,10 @@ function TestDetail() {
   >([]);
   const [savingVars, setSavingVars] = useState(false);
   const [showSecrets, setShowSecrets] = useState(false);
+  // Visual-regression image viewer: signed URLs per screenshot step, keyed `${runId}:${sid|idx}`.
+  const [imgState, setImgState] = useState<
+    Record<string, { busy?: boolean; updating?: boolean; urls?: Record<string, string> }>
+  >({});
 
   const refresh = async () => {
     const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
@@ -175,6 +179,48 @@ function TestDetail() {
       setAnalysis(null);
     }
     setAnalysisBusy(false);
+  };
+
+  // --- Visual-regression viewer ---
+  const stepKey = (r: any, s: any) => `${r.id}:${s.sid ?? s.idx}`;
+  const stepImagePaths = (s: any): string[] =>
+    [s.baseline_path, s.actual_path, s.diff_path].filter(Boolean);
+
+  const loadImages = async (r: any, s: any) => {
+    const key = stepKey(r, s);
+    const paths = stepImagePaths(s);
+    if (!paths.length) return;
+    setImgState((m) => ({ ...m, [key]: { ...m[key], busy: true } }));
+    try {
+      const { urls } = await apiCall<{ urls: Record<string, string> }>(
+        "/api/protected/screenshot-url",
+        { paths },
+      );
+      setImgState((m) => ({ ...m, [key]: { busy: false, urls } }));
+    } catch (e: any) {
+      toast.error(e.message);
+      setImgState((m) => ({ ...m, [key]: { ...m[key], busy: false } }));
+    }
+  };
+
+  // Promote a run's captured "actual" to the new baseline (for an intentional UI change).
+  const updateBaseline = async (r: any, s: any) => {
+    if (!s.actual_path) return;
+    const key = stepKey(r, s);
+    setImgState((m) => ({ ...m, [key]: { ...m[key], updating: true } }));
+    try {
+      await apiCall("/api/protected/update-baseline", {
+        testId,
+        sid: s.sid ?? null,
+        idx: s.idx,
+        actualPath: s.actual_path,
+      });
+      toast.success("Baseline updated — next run compares against this image.");
+      setImgState((m) => ({ ...m, [key]: { ...m[key], updating: false } }));
+    } catch (e: any) {
+      toast.error(e.message);
+      setImgState((m) => ({ ...m, [key]: { ...m[key], updating: false } }));
+    }
   };
 
   const healStep = async (idx: number) => {
@@ -298,7 +344,12 @@ function TestDetail() {
         return toast.error(`Step ${i + 1}: ${s.action} needs a value.`);
     }
     setSavingSteps(true);
-    const steps = draft.map(({ _k, ...s }: any) => s); // strip the transient key
+    const steps = draft.map(({ _k, ...s }: any) => {
+      // Give every screenshot step a stable id so its baseline survives reordering /
+      // inserting steps (the baseline is keyed by sid, not by positional index).
+      if (s.action === "screenshot" && !s.sid) s.sid = crypto.randomUUID();
+      return s;
+    }); // _k is the transient React key; sid persists in the spec
     const { error } = await supabase
       .from("tests")
       .update({ spec: { ...test.spec, steps } })
@@ -924,6 +975,64 @@ function TestDetail() {
                           ) : (
                             <span className="text-amber-500">storage not set up</span>
                           )}
+                          {stepImagePaths(s).length > 0 &&
+                            (() => {
+                              const st = imgState[stepKey(r, s)];
+                              if (!st?.urls) {
+                                return (
+                                  <button
+                                    className="ml-2 text-[11px] underline text-muted-foreground hover:text-foreground disabled:opacity-50"
+                                    disabled={st?.busy}
+                                    onClick={() => loadImages(r, s)}
+                                  >
+                                    {st?.busy ? "loading…" : "view images"}
+                                  </button>
+                                );
+                              }
+                              const tiles: [string, string][] = (
+                                [
+                                  ["baseline", s.baseline_path],
+                                  ["actual", s.actual_path],
+                                  ["diff", s.diff_path],
+                                ] as [string, string | undefined][]
+                              )
+                                .filter(([, p]) => p && st.urls?.[p])
+                                .map(([label, p]) => [label, st.urls![p as string]]);
+                              return (
+                                <div className="mt-2">
+                                  <div className="flex flex-wrap gap-3">
+                                    {tiles.map(([label, url]) => (
+                                      <figure
+                                        key={label}
+                                        className="text-[10px] text-muted-foreground"
+                                      >
+                                        <a href={url} target="_blank" rel="noreferrer">
+                                          <img
+                                            src={url}
+                                            alt={label}
+                                            className="h-32 w-auto rounded border border-border object-contain bg-surface"
+                                          />
+                                        </a>
+                                        <figcaption className="mt-0.5 uppercase tracking-wide">
+                                          {label}
+                                        </figcaption>
+                                      </figure>
+                                    ))}
+                                  </div>
+                                  {s.actual_path && (
+                                    <button
+                                      className="mt-2 text-[11px] underline text-primary-glow hover:opacity-80 disabled:opacity-50"
+                                      disabled={imgState[stepKey(r, s)]?.updating}
+                                      onClick={() => updateBaseline(r, s)}
+                                    >
+                                      {imgState[stepKey(r, s)]?.updating
+                                        ? "updating…"
+                                        : "update baseline to this"}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                         </div>
                       ))}
                   </div>
