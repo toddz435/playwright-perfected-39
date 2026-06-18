@@ -18,10 +18,11 @@ export default defineConfig({
   // Node dev/preview server, not in the Cloudflare Worker build.
   vite: {
     ssr: {
-      external: ["@playwright/test", "playwright", "playwright-core"],
+      // pngjs/pixelmatch back the visual-regression diff (Node-only, dynamic-imported).
+      external: ["@playwright/test", "playwright", "playwright-core", "pngjs", "pixelmatch"],
     },
     optimizeDeps: {
-      exclude: ["@playwright/test", "playwright", "playwright-core"],
+      exclude: ["@playwright/test", "playwright", "playwright-core", "pngjs", "pixelmatch"],
     },
   },
 });
