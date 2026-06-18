@@ -17,7 +17,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # This is a bun-managed project (bun.lock is canonical); package-lock.json drifts and
+      # npm 10 vs 11 resolve it differently, so strict `npm ci` is brittle here. `npm install`
+      # reconciles instead of hard-failing on the sync invariant. --ignore-scripts skips
+      # dependency install scripts (notably @playwright/test's browser download — large and
+      # not needed: CI only typechecks and runs pure unit tests; esbuild's binary ships via a
+      # platform optional-dep, not a script, so vitest still works).
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Unit tests
