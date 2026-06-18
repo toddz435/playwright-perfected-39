@@ -13,7 +13,7 @@ import {
   conditionLabel,
   type ConditionKind,
 } from "@/lib/conditions";
-import { isBlockMarker, validateBlocks, computeDepths, blockBounds } from "@/lib/blocks";
+import { isBlockMarker, validateBlocks, computeDepths, blockBounds, loopBounds } from "@/lib/blocks";
 import { advisoriesToMarkdown } from "@/lib/advisory-format";
 import { specVars } from "@/lib/vars";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ import {
   Pencil,
   ArrowUp,
   GitBranch,
+  Repeat,
   ArrowDown,
   Plus,
   Save,
@@ -337,11 +338,13 @@ function TestDetail() {
       [copy[i], copy[j]] = [copy[j], copy[i]];
       return copy;
     });
-  // Removing a block marker removes the whole block's markers (if/else/endif) but keeps the
-  // body steps (they become top-level), so the list never ends up unbalanced.
+  // Removing a block marker removes the whole block's markers (if/else/endif or
+  // repeat/endrepeat) but keeps the body steps (they become top-level), so the list never
+  // ends up unbalanced.
   const removeStep = (i: number) =>
     setDraft((d) => {
-      if (isBlockMarker(d[i]?.action)) {
+      const a = d[i]?.action;
+      if (a === "if" || a === "else" || a === "endif") {
         const b = blockBounds(d, i);
         if (b) {
           const drop = new Set<number>([
@@ -349,6 +352,12 @@ function TestDetail() {
             b.endifIndex,
             ...(b.elseIndex !== null ? [b.elseIndex] : []),
           ]);
+          return d.filter((_, idx) => !drop.has(idx));
+        }
+      } else if (a === "repeat" || a === "endrepeat") {
+        const b = loopBounds(d, i);
+        if (b) {
+          const drop = new Set<number>([b.repeatIndex, b.endrepeatIndex]);
           return d.filter((_, idx) => !drop.has(idx));
         }
       }
@@ -363,6 +372,17 @@ function TestDetail() {
       { action: "if", condition: { kind: "visible", target: "" }, _k: crypto.randomUUID() },
       { action: "endif", _k: crypto.randomUUID() },
     ]);
+  // Adds a balanced repeat-block (repeat … endrepeat), defaulting to "3 times".
+  const addRepeatBlock = () =>
+    setDraft((d) => [
+      ...d,
+      { action: "repeat", loop: { mode: "times", count: 3 }, _k: crypto.randomUUID() },
+      { action: "endrepeat", _k: crypto.randomUUID() },
+    ]);
+  const patchLoop = (i: number, patch: any) =>
+    setDraft((d) =>
+      d.map((s, idx) => (idx === i ? { ...s, loop: { ...s.loop, ...patch } } : s)),
+    );
   // Inserts an `else` before the matching endif of the block containing marker i (once only).
   const addElse = (i: number) =>
     setDraft((d) => {
@@ -426,6 +446,21 @@ function TestDetail() {
                 URL_CONDITION_KINDS.has(s.condition?.kind) ? "a URL substring" : "a locator"
               }.`,
             );
+        }
+        if (s.action === "repeat") {
+          if ((s.loop?.mode ?? "times") === "while") {
+            const hasCondTarget = !!(s.condition?.locator || (s.condition?.target ?? "").trim());
+            if (!hasCondTarget)
+              return toast.error(
+                `Step ${i + 1}: "repeat while" needs ${
+                  URL_CONDITION_KINDS.has(s.condition?.kind) ? "a URL substring" : "a locator"
+                }.`,
+              );
+          } else {
+            const n = Number(s.loop?.count);
+            if (!Number.isFinite(n) || n < 1)
+              return toast.error(`Step ${i + 1}: "repeat" needs a count of 1 or more.`);
+          }
         }
         continue;
       }
@@ -914,10 +949,81 @@ function TestDetail() {
                             </Button>
                           )}
                         </>
+                      ) : s.action === "repeat" ? (
+                        <>
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-primary-glow">
+                            repeat
+                          </span>
+                          <select
+                            value={s.loop?.mode ?? "times"}
+                            onChange={(e) => patchLoop(i, { mode: e.target.value })}
+                            className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
+                          >
+                            <option value="times">times</option>
+                            <option value="while">while</option>
+                          </select>
+                          {(s.loop?.mode ?? "times") === "times" ? (
+                            <>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={s.loop?.count ?? 3}
+                                onChange={(e) => patchLoop(i, { count: Number(e.target.value) })}
+                                className="bg-input/50 text-xs font-mono w-20"
+                              />
+                              <span className="text-[11px] text-muted-foreground">times</span>
+                            </>
+                          ) : (
+                            <>
+                              <select
+                                value={s.condition?.kind ?? "visible"}
+                                onChange={(e) =>
+                                  setConditionKind(i, e.target.value as ConditionKind)
+                                }
+                                className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
+                              >
+                                {CONDITION_KINDS.map((k) => (
+                                  <option key={k} value={k}>
+                                    {k.replace("_", " ")}
+                                  </option>
+                                ))}
+                              </select>
+                              <Input
+                                value={
+                                  s.condition?.locator
+                                    ? locatorLabel(s.condition.locator)
+                                    : (s.condition?.target ?? "")
+                                }
+                                onChange={(e) =>
+                                  patchCondition(i, { target: e.target.value, locator: undefined })
+                                }
+                                placeholder={
+                                  URL_CONDITION_KINDS.has(s.condition?.kind)
+                                    ? "url substring"
+                                    : "locator (css, text=…, role=…)"
+                                }
+                                className="bg-input/50 text-xs font-mono flex-1 min-w-[160px]"
+                              />
+                            </>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => addStepInside(i)}
+                            title="Add a step inside this loop"
+                            className="text-xs"
+                          >
+                            + step
+                          </Button>
+                        </>
                       ) : (
                         <>
                           <span className="text-[11px] font-bold uppercase tracking-wide text-primary-glow">
-                            {s.action === "else" ? "else" : "end if"}
+                            {s.action === "else"
+                              ? "else"
+                              : s.action === "endrepeat"
+                                ? "end repeat"
+                                : "end if"}
                           </span>
                           {s.action === "else" && (
                             <Button
@@ -1034,6 +1140,9 @@ function TestDetail() {
               <Button size="sm" variant="outline" onClick={addIfBlock}>
                 <GitBranch className="h-3.5 w-3.5 mr-1" /> Add if-block
               </Button>
+              <Button size="sm" variant="outline" onClick={addRepeatBlock}>
+                <Repeat className="h-3.5 w-3.5 mr-1" /> Add repeat-block
+              </Button>
             </div>
           </div>
         ) : (
@@ -1051,7 +1160,13 @@ function TestDetail() {
                 <div className="flex items-center gap-3 font-mono text-sm">
                   <span className="text-xs text-muted-foreground w-6">{i + 1}</span>
                   <Badge variant="secondary" className="text-xs">
-                    {isApi ? s.method : s.action === "endif" ? "end if" : s.action}
+                    {isApi
+                      ? s.method
+                      : s.action === "endif"
+                        ? "end if"
+                        : s.action === "endrepeat"
+                          ? "end repeat"
+                          : s.action}
                   </Badge>
                   <span className="flex-1 truncate">
                     {isApi
@@ -1059,7 +1174,13 @@ function TestDetail() {
                       : isBlockMarker(s.action)
                         ? s.action === "if" && s.condition
                           ? conditionLabel(s.condition)
-                          : ""
+                          : s.action === "repeat"
+                            ? (s.loop?.mode ?? "times") === "while"
+                              ? s.condition
+                                ? `while ${conditionLabel(s.condition).replace(/^only if /, "")}`
+                                : "while …"
+                              : `${s.loop?.count ?? 0} times`
+                            : ""
                         : s.locator
                           ? locatorLabel(s.locator)
                           : s.target}
@@ -1187,7 +1308,7 @@ function TestDetail() {
                   {(r.steps || []).map((s: any, i: number) => (
                     <div
                       key={i}
-                      title={`${s.action || s.name} ${s.target || ""}${s.status === "healed" ? ` (healed from ${s.healed_from})` : ""}${s.status === "skipped" && s.skipped_reason ? ` (skipped — ${s.skipped_reason})` : ""}`}
+                      title={`${s.action || s.name} ${s.target || ""}${s.iteration ? ` [iter ${s.iteration}]` : ""}${s.status === "healed" ? ` (healed from ${s.healed_from})` : ""}${s.status === "skipped" && s.skipped_reason ? ` (skipped — ${s.skipped_reason})` : ""}`}
                       className={`h-1.5 flex-1 min-w-[8px] rounded-full ${s.status === "passed" ? "bg-success" : s.status === "healed" ? "bg-amber-500" : s.status === "failed" ? "bg-destructive" : s.status === "skipped" ? "bg-muted-foreground/30" : "bg-muted"}`}
                     />
                   ))}

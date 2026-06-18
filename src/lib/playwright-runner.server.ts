@@ -13,7 +13,7 @@ import {
   conditionSrc,
   URL_CONDITION_KINDS,
 } from "@/lib/conditions";
-import { validateBlocks, isBlockMarker } from "@/lib/blocks";
+import { validateBlocks, isBlockMarker, loopBounds } from "@/lib/blocks";
 
 export type Step = {
   action: string;
@@ -30,6 +30,9 @@ export type Step = {
   // Optional guard: the step runs only if this condition holds (else it's skipped). Used
   // for optional interactions like dismissing a cookie banner that may not appear.
   condition?: StepCondition;
+  // On a `repeat` marker: loop config. "times" repeats `count` times; "while" repeats as long
+  // as `condition` holds (reuses the `condition` field above). Always bounded by hard caps.
+  loop?: { mode: "times" | "while"; count?: number };
 };
 
 // Resolves a locator (structured, or a legacy CSS/native-engine string) to a Playwright
@@ -105,6 +108,23 @@ const frameRuns = (f: CtrlFrame) => (f.inElse ? !f.condTrue : f.condTrue);
 // A step executes only if every enclosing block frame is currently running its branch.
 const blockActive = (ctrl: CtrlFrame[]) => ctrl.every(frameRuns);
 
+// HARD safety caps for loops — a `while` condition that never flips, or a huge `count`, can
+// never hang the runner or spin forever (reliability/security). Always enforced.
+const MAX_LOOP_ITERATIONS = 100;
+const MAX_LOOP_MS = 120_000; // 2 minutes of wall-clock per loop
+// One open `repeat` loop. `iter` is the 1-based current iteration; `condition` is the while
+// guard (undefined for count loops); `count` is the times target (capped).
+type LoopFrame = {
+  repeatIndex: number;
+  endIndex: number;
+  mode: "times" | "while";
+  count: number;
+  condition?: StepCondition;
+  iter: number;
+  startedAt: number;
+  capped?: boolean;
+};
+
 export type StepStatus = "passed" | "failed" | "skipped" | "healed";
 
 export type StepResult = {
@@ -117,6 +137,8 @@ export type StepResult = {
   error?: string;
   // Why a step was skipped (e.g. its condition guard was not met).
   skipped_reason?: string;
+  // 1-based loop iteration this result belongs to (set for steps inside a `repeat` block).
+  iteration?: number;
   // Present when the step's locator was auto-healed before it passed:
   healed_from?: string;
   healed_to?: string;
@@ -198,6 +220,14 @@ export async function runBrowserSteps(
   let status: "passed" | "failed" = "passed";
   // Control-flow stack for if/else blocks: one frame per open `if`.
   const ctrl: CtrlFrame[] = [];
+  // Loop stack: one frame per active `repeat`. Body-step results are stamped with the innermost
+  // loop's current iteration via rec().
+  const loops: LoopFrame[] = [];
+  // Records a step result, stamping the current loop iteration when inside a `repeat`.
+  const rec = (r: StepResult) => {
+    const it = loops.length ? loops[loops.length - 1].iter : undefined;
+    results.push(it != null ? { ...r, iteration: it } : r);
+  };
 
   // Executes one selector-based action against a given selector. Throws LocatorError
   // when the element can't be found/interacted-with, AssertionError on value mismatch.
@@ -286,7 +316,7 @@ export async function runBrowserSteps(
     for (let i = 0; i < steps.length; i++) {
       const s = steps[i];
       if (i < startIdx) {
-        results.push({
+        rec({
           idx: i,
           status: "skipped",
           action: s.action,
@@ -316,9 +346,74 @@ export async function runBrowserSteps(
         if (ctrl.length) ctrl.pop();
         continue;
       }
+
+      // --- loop markers (repeat / endrepeat) — see src/lib/blocks.ts ---
+      if (s.action === "repeat") {
+        // A repeat inside a not-taken if-branch never runs: skip the marker; its body steps
+        // are skipped individually and its endrepeat no-ops (no frame pushed).
+        if (!blockActive(ctrl)) continue;
+        const bounds = loopBounds(steps, i);
+        const endIndex = bounds ? bounds.endrepeatIndex : i; // validateBlocks guarantees a match
+        const mode = s.loop?.mode === "while" ? "while" : "times";
+        const count = Math.min(
+          Math.max(0, Math.floor(Number(s.loop?.count ?? 0))),
+          MAX_LOOP_ITERATIONS,
+        );
+        const enter =
+          mode === "while"
+            ? s.condition
+              ? await evalCondition(page, s.condition)
+              : false
+            : count > 0;
+        if (!enter) {
+          i = endIndex; // jump past the body; the loop ran zero times
+          continue;
+        }
+        loops.push({
+          repeatIndex: i,
+          endIndex,
+          mode,
+          count,
+          condition: mode === "while" ? s.condition : undefined,
+          iter: 1,
+          startedAt: Date.now(),
+        });
+        continue; // fall into the body
+      }
+      if (s.action === "endrepeat") {
+        const frame = loops[loops.length - 1];
+        // Only the active loop's own endrepeat drives iteration (markers from skipped/zero-run
+        // branches no-op).
+        if (!frame || frame.endIndex !== i) continue;
+        const elapsed = Date.now() - frame.startedAt;
+        let again = false;
+        if (frame.iter >= MAX_LOOP_ITERATIONS || elapsed > MAX_LOOP_MS) {
+          // Hard safety cap hit — stop looping and surface it (never an infinite loop).
+          rec({
+            idx: i,
+            status: "skipped",
+            action: "repeat",
+            skipped_reason: `loop stopped at safety cap (${frame.iter} iterations${
+              elapsed > MAX_LOOP_MS ? `, ${Math.round(elapsed / 1000)}s` : ""
+            })`,
+          });
+        } else if (frame.mode === "while") {
+          again = frame.condition ? await evalCondition(page, frame.condition) : false;
+        } else {
+          again = frame.iter < frame.count;
+        }
+        if (again) {
+          frame.iter++;
+          i = frame.repeatIndex; // i++ lands back on the first body step
+          continue;
+        }
+        loops.pop();
+        continue;
+      }
+
       // Inside a branch that isn't executing → skip this step (never fails the run).
       if (!blockActive(ctrl)) {
-        results.push({
+        rec({
           idx: i,
           status: "skipped",
           action: s.action,
@@ -333,7 +428,7 @@ export async function runBrowserSteps(
       if (s.condition) {
         const met = await evalCondition(page, s.condition);
         if (!met) {
-          results.push({
+          rec({
             idx: i,
             status: "skipped",
             action: s.action,
@@ -358,7 +453,7 @@ export async function runBrowserSteps(
         } else {
           await page.waitForTimeout(Math.min(Number(s.value) || 500, stepTimeout));
         }
-        results.push({
+        rec({
           idx: i,
           status: "passed",
           action: s.action,
@@ -383,7 +478,7 @@ export async function runBrowserSteps(
             locSrc != null
               ? await resolveLocator(page, locSrc).first().screenshot({ timeout: stepTimeout })
               : await page.screenshot({ fullPage: s.value === "fullPage" });
-          results.push({
+          rec({
             idx: i,
             sid: s.sid, // stable baseline key (survives step reorder); undefined for legacy steps
             status: "passed",
@@ -393,7 +488,7 @@ export async function runBrowserSteps(
             screenshot: buf.toString("base64"),
           });
         } catch (e: any) {
-          results.push({
+          rec({
             idx: i,
             status: "failed",
             action: "screenshot",
@@ -411,7 +506,7 @@ export async function runBrowserSteps(
       if (s.action === "goto") {
         try {
           await page.goto(s.target ?? "", { waitUntil: "domcontentloaded", timeout: gotoTimeout });
-          results.push({
+          rec({
             idx: i,
             status: "passed",
             action: s.action,
@@ -419,7 +514,7 @@ export async function runBrowserSteps(
             duration_ms: Date.now() - sStart,
           });
         } catch (e: any) {
-          results.push({
+          rec({
             idx: i,
             status: "failed",
             action: s.action,
@@ -441,7 +536,7 @@ export async function runBrowserSteps(
           url = page.url();
         }
         if (url.includes(s.target ?? "")) {
-          results.push({
+          rec({
             idx: i,
             status: "passed",
             action: s.action,
@@ -449,7 +544,7 @@ export async function runBrowserSteps(
             duration_ms: Date.now() - sStart,
           });
         } else {
-          results.push({
+          rec({
             idx: i,
             status: "failed",
             action: s.action,
@@ -471,7 +566,7 @@ export async function runBrowserSteps(
         const label = locatorLabel(locSource);
         try {
           await execSelectorStep(s.action, locSource, s.value);
-          results.push({
+          rec({
             idx: i,
             status: "passed",
             action: s.action,
@@ -483,7 +578,7 @@ export async function runBrowserSteps(
         } catch (err) {
           // Genuine assertion mismatch — do not heal, stop the run.
           if (err instanceof AssertionError) {
-            results.push({
+            rec({
               idx: i,
               status: "failed",
               action: s.action,
@@ -501,7 +596,7 @@ export async function runBrowserSteps(
           for (const fb of s.fallbacks ?? []) {
             try {
               await execSelectorStep(s.action, fb, s.value);
-              results.push({
+              rec({
                 idx: i,
                 status: "healed",
                 action: s.action,
@@ -530,7 +625,7 @@ export async function runBrowserSteps(
             if (healed && healed !== label) {
               try {
                 await execSelectorStep(s.action, healed, s.value);
-                results.push({
+                rec({
                   idx: i,
                   status: "healed",
                   action: s.action,
@@ -544,7 +639,7 @@ export async function runBrowserSteps(
                 });
                 continue; // healed → carry on with the rest of the script
               } catch (retryErr: any) {
-                results.push({
+                rec({
                   idx: i,
                   status: "failed",
                   action: s.action,
@@ -559,7 +654,7 @@ export async function runBrowserSteps(
             }
           }
 
-          results.push({
+          rec({
             idx: i,
             status: "failed",
             action: s.action,
@@ -574,7 +669,7 @@ export async function runBrowserSteps(
       }
 
       // Unknown action — record and stop.
-      results.push({
+      rec({
         idx: i,
         status: "failed",
         action: s.action,
