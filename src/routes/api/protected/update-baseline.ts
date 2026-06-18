@@ -13,15 +13,22 @@ export const Route = createFileRoute("/api/protected/update-baseline")({
         try {
           const { userId, token } = await requireUser(request);
           const { testId, sid, idx, actualPath } = await request.json();
-          if (!testId || typeof actualPath !== "string")
+          if (typeof testId !== "string" || typeof actualPath !== "string")
             return json({ error: "testId and actualPath required" }, { status: 400 });
 
-          const baselineKey =
-            sid != null ? `sid-${sid}` : `baseline-${Number(idx) || 0}`;
+          // testId/sid are interpolated into the storage key — reject anything but plain
+          // UUID-ish tokens so "/" or ".." can't escape the owner/test prefix (path injection).
+          const safeToken = (v: string) => /^[A-Za-z0-9-]+$/.test(v);
+          if (!safeToken(testId)) return json({ error: "bad testId" }, { status: 400 });
+          if (sid != null && !safeToken(String(sid)))
+            return json({ error: "bad sid" }, { status: 400 });
+
+          // Key must match runVisualDiffs exactly (truthy sid check, idx fallback).
+          const baselineKey = sid ? `sid-${sid}` : `baseline-${Number(idx) || 0}`;
           const baselinePath = `${userId}/${testId}/${baselineKey}.png`;
           const prefix = `${userId}/${testId}/`;
-          // The actual must belong to this user AND this test — no cross-test/user writes.
-          if (!actualPath.startsWith(prefix))
+          // Both the source (actual) and the constructed write target must stay in-prefix.
+          if (!actualPath.startsWith(prefix) || !baselinePath.startsWith(prefix))
             return json({ error: "forbidden path" }, { status: 403 });
 
           const SUPABASE_URL = process.env.SUPABASE_URL!;

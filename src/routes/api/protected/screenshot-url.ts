@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 // bucket so the browser can render baseline/actual/diff. Owner-scoped two ways: the path
 // must start with the caller's own id, AND the request runs through the RLS token client
 // (Storage policies gate it again). Batched to one round-trip for a step's 3 images.
-const SIGNED_URL_TTL = 120; // seconds — long enough to view, short enough to not leak
+const SIGNED_URL_TTL = 300; // seconds — long enough to compare images, short enough to not leak
 
 export const Route = createFileRoute("/api/protected/screenshot-url")({
   server: {

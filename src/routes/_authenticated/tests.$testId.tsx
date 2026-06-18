@@ -216,7 +216,9 @@ function TestDetail() {
         actualPath: s.actual_path,
       });
       toast.success("Baseline updated — next run compares against this image.");
-      setImgState((m) => ({ ...m, [key]: { ...m[key], updating: false } }));
+      // Re-fetch so the baseline tile shows the just-promoted image (fresh signed URL
+      // busts the browser cache); loadImages clears `updating` via a full state replace.
+      await loadImages(r, s);
     } catch (e: any) {
       toast.error(e.message);
       setImgState((m) => ({ ...m, [key]: { ...m[key], updating: false } }));
