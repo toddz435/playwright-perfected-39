@@ -6,11 +6,34 @@ import { runBrowserSteps } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
 import { interpolate, specVars, secretValues, maskSecrets } from "@/lib/vars";
-import { compareVisual } from "@/lib/visual.server";
+import { compareVisual, selectExpiredCaptures } from "@/lib/visual.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // A screenshot step fails the run when more than this fraction of pixels differ.
 const VISUAL_DIFF_THRESHOLD = 0.005; // 0.5%
+// Keep only the most recent N runs' actual/diff captures per test (baselines are kept
+// forever). Pruned after every run so the captures folder stays bounded.
+const VISUAL_CAPTURE_RETENTION = 20;
+
+// Delete capture images older than the retention window. Pure selection lives in
+// visual.server.ts (unit-tested); this just does the Storage list/remove. Best-effort:
+// never let housekeeping fail a run.
+async function pruneCaptures(bucket: any, ownerId: string, testId: string) {
+  const dir = `${ownerId}/${testId}/captures`;
+  // Steady-state this folder stays small (retention runs every run), so one page of 1000
+  // newest-first entries is plenty; a pre-retention backlog larger than that drains over
+  // subsequent runs as newer captures push older ones out of the window.
+  const { data, error } = await bucket.list(dir, {
+    limit: 1000,
+    sortBy: { column: "created_at", order: "desc" },
+  });
+  if (error || !data?.length) return;
+  const expired = selectExpiredCaptures(
+    data.map((o: any) => o.name),
+    VISUAL_CAPTURE_RETENTION,
+  );
+  if (expired.length) await bucket.remove(expired.map((n) => `${dir}/${n}`));
+}
 
 // For each `screenshot` step result (carrying a base64 capture), compare against the stored
 // baseline in Storage (or create it on first run), upload actual/diff images, and write
@@ -41,7 +64,11 @@ async function runVisualDiffs(
   for (const step of shots) {
     const actual = Buffer.from(step.screenshot, "base64");
     delete step.screenshot; // never persist the raw base64 on the run record
-    const baselinePath = `${ownerId}/${testId}/baseline-${step.idx}.png`;
+    // Key the baseline by the step's stable id so reordering/inserting steps doesn't
+    // re-point it at another screenshot's baseline. Legacy steps (no sid) fall back to
+    // the positional index, preserving any baseline already created under that key.
+    const baselineKey = step.sid ? `sid-${step.sid}` : `baseline-${step.idx}`;
+    const baselinePath = `${ownerId}/${testId}/${baselineKey}.png`;
     try {
       const { data: dl, error: dlErr } = await bucket.download(baselinePath);
       if (!dl) {
@@ -100,6 +127,12 @@ async function runVisualDiffs(
       step.visual = "error";
       step.visual_error = e?.message || "screenshot storage unavailable";
     }
+  }
+  // Housekeeping: drop captures beyond the retention window. Never fail a run on this.
+  try {
+    await pruneCaptures(bucket, ownerId, testId);
+  } catch (e: any) {
+    console.error("capture prune failed:", e?.message || e);
   }
   return anyFailed;
 }

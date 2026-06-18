@@ -17,6 +17,9 @@ export type Step = {
   // Ranked alternates tried (deterministically) before the LLM healer — see Phase D.
   fallbacks?: Locator[];
   value?: string;
+  // Stable id for a `screenshot` step — keys its visual-regression baseline so the
+  // baseline survives reordering/inserting steps. Assigned in the step editor.
+  sid?: string;
 };
 
 // Resolves a locator (structured, or a legacy CSS/native-engine string) to a Playwright
@@ -63,6 +66,8 @@ export type StepResult = {
   // Base64 PNG captured by a `screenshot` step (consumed/cleared by the runner's
   // visual-regression diff in executeTest; never persisted as base64).
   screenshot?: string;
+  // Stable per-screenshot id (from the spec step) used to key its baseline.
+  sid?: string;
 };
 
 // Called when a selector-based step fails to locate its element. Returns a replacement
@@ -254,6 +259,7 @@ export async function runBrowserSteps(
               : await page.screenshot({ fullPage: s.value === "fullPage" });
           results.push({
             idx: i,
+            sid: s.sid, // stable baseline key (survives step reorder); undefined for legacy steps
             status: "passed",
             action: "screenshot",
             target: label,

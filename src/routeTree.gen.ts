@@ -22,7 +22,9 @@ import { Route as AuthenticatedConsoleRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedCodegenRouteImport } from './routes/_authenticated/codegen'
 import { Route as AuthenticatedApiTesterRouteImport } from './routes/_authenticated/api-tester'
 import { Route as ApiPublicRunDueSchedulesRouteImport } from './routes/api/public/run-due-schedules'
+import { Route as ApiProtectedUpdateBaselineRouteImport } from './routes/api/protected/update-baseline'
 import { Route as ApiProtectedSeedDemoRouteImport } from './routes/api/protected/seed-demo'
+import { Route as ApiProtectedScreenshotUrlRouteImport } from './routes/api/protected/screenshot-url'
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
 import { Route as ApiProtectedRecordCodegenRouteImport } from './routes/api/protected/record-codegen'
 import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protected/harden-test'
@@ -100,11 +102,23 @@ const ApiPublicRunDueSchedulesRoute =
     path: '/api/public/run-due-schedules',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedUpdateBaselineRoute =
+  ApiProtectedUpdateBaselineRouteImport.update({
+    id: '/api/protected/update-baseline',
+    path: '/api/protected/update-baseline',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiProtectedSeedDemoRoute = ApiProtectedSeedDemoRouteImport.update({
   id: '/api/protected/seed-demo',
   path: '/api/protected/seed-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProtectedScreenshotUrlRoute =
+  ApiProtectedScreenshotUrlRouteImport.update({
+    id: '/api/protected/screenshot-url',
+    path: '/api/protected/screenshot-url',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiProtectedRunTestRoute = ApiProtectedRunTestRouteImport.update({
   id: '/api/protected/run-test',
   path: '/api/protected/run-test',
@@ -192,7 +206,9 @@ export interface FileRoutesByFullPath {
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
+  '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
+  '/api/protected/update-baseline': typeof ApiProtectedUpdateBaselineRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
 }
 export interface FileRoutesByTo {
@@ -218,7 +234,9 @@ export interface FileRoutesByTo {
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
+  '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
+  '/api/protected/update-baseline': typeof ApiProtectedUpdateBaselineRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
 }
 export interface FileRoutesById {
@@ -246,7 +264,9 @@ export interface FileRoutesById {
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
+  '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
+  '/api/protected/update-baseline': typeof ApiProtectedUpdateBaselineRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
 }
 export interface FileRouteTypes {
@@ -274,7 +294,9 @@ export interface FileRouteTypes {
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
     | '/api/protected/run-test'
+    | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
+    | '/api/protected/update-baseline'
     | '/api/public/run-due-schedules'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -300,7 +322,9 @@ export interface FileRouteTypes {
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
     | '/api/protected/run-test'
+    | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
+    | '/api/protected/update-baseline'
     | '/api/public/run-due-schedules'
   id:
     | '__root__'
@@ -327,7 +351,9 @@ export interface FileRouteTypes {
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
     | '/api/protected/run-test'
+    | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
+    | '/api/protected/update-baseline'
     | '/api/public/run-due-schedules'
   fileRoutesById: FileRoutesById
 }
@@ -348,7 +374,9 @@ export interface RootRouteChildren {
   ApiProtectedHardenTestRoute: typeof ApiProtectedHardenTestRoute
   ApiProtectedRecordCodegenRoute: typeof ApiProtectedRecordCodegenRoute
   ApiProtectedRunTestRoute: typeof ApiProtectedRunTestRoute
+  ApiProtectedScreenshotUrlRoute: typeof ApiProtectedScreenshotUrlRoute
   ApiProtectedSeedDemoRoute: typeof ApiProtectedSeedDemoRoute
+  ApiProtectedUpdateBaselineRoute: typeof ApiProtectedUpdateBaselineRoute
   ApiPublicRunDueSchedulesRoute: typeof ApiPublicRunDueSchedulesRoute
 }
 
@@ -445,11 +473,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRunDueSchedulesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/update-baseline': {
+      id: '/api/protected/update-baseline'
+      path: '/api/protected/update-baseline'
+      fullPath: '/api/protected/update-baseline'
+      preLoaderRoute: typeof ApiProtectedUpdateBaselineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/seed-demo': {
       id: '/api/protected/seed-demo'
       path: '/api/protected/seed-demo'
       fullPath: '/api/protected/seed-demo'
       preLoaderRoute: typeof ApiProtectedSeedDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/screenshot-url': {
+      id: '/api/protected/screenshot-url'
+      path: '/api/protected/screenshot-url'
+      fullPath: '/api/protected/screenshot-url'
+      preLoaderRoute: typeof ApiProtectedScreenshotUrlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/protected/run-test': {
@@ -573,9 +615,21 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedHardenTestRoute: ApiProtectedHardenTestRoute,
   ApiProtectedRecordCodegenRoute: ApiProtectedRecordCodegenRoute,
   ApiProtectedRunTestRoute: ApiProtectedRunTestRoute,
+  ApiProtectedScreenshotUrlRoute: ApiProtectedScreenshotUrlRoute,
   ApiProtectedSeedDemoRoute: ApiProtectedSeedDemoRoute,
+  ApiProtectedUpdateBaselineRoute: ApiProtectedUpdateBaselineRoute,
   ApiPublicRunDueSchedulesRoute: ApiPublicRunDueSchedulesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

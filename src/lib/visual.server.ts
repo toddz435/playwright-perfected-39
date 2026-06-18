@@ -10,6 +10,32 @@ export type VisualDiff = {
   diffPng?: Buffer; // diff visualization (only when dimensions match)
 };
 
+// Per-run capture file names look like `{captureId}-{idx}-actual.png` / `...-diff.png`.
+// captureId is a UUID (so it contains hyphens) — strip the trailing `-{idx}-(actual|diff).png`
+// to recover it. Returns null for anything that isn't a capture file (e.g. a baseline).
+function captureIdOf(name: string): string | null {
+  const m = name.match(/^(.*)-\d+-(?:actual|diff)\.png$/);
+  return m ? m[1] : null;
+}
+
+// Given capture file names ordered NEWEST-FIRST, return the names belonging to runs beyond
+// the most recent `keepRuns` (grouped by captureId = one run). Pure so it can be unit-tested
+// without Storage. Non-capture names are ignored (never deleted).
+export function selectExpiredCaptures(namesNewestFirst: string[], keepRuns: number): string[] {
+  const keep = new Set<string>();
+  for (const n of namesNewestFirst) {
+    const cid = captureIdOf(n);
+    if (cid && !keep.has(cid)) {
+      if (keep.size >= keepRuns) break; // every later distinct run is older → expired
+      keep.add(cid);
+    }
+  }
+  return namesNewestFirst.filter((n) => {
+    const cid = captureIdOf(n);
+    return cid !== null && !keep.has(cid);
+  });
+}
+
 // `colorThreshold` is pixelmatch's per-pixel sensitivity (0..1). The pass/fail decision on
 // diffRatio is made by the caller.
 export async function compareVisual(
