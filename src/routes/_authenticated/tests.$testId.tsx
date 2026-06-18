@@ -13,6 +13,7 @@ import {
   conditionLabel,
   type ConditionKind,
 } from "@/lib/conditions";
+import { isBlockMarker, validateBlocks, computeDepths, blockBounds } from "@/lib/blocks";
 import { advisoriesToMarkdown } from "@/lib/advisory-format";
 import { specVars } from "@/lib/vars";
 import { toast } from "sonner";
@@ -336,9 +337,41 @@ function TestDetail() {
       [copy[i], copy[j]] = [copy[j], copy[i]];
       return copy;
     });
-  const removeStep = (i: number) => setDraft((d) => d.filter((_, idx) => idx !== i));
+  // Removing a block marker removes the whole block's markers (if/else/endif) but keeps the
+  // body steps (they become top-level), so the list never ends up unbalanced.
+  const removeStep = (i: number) =>
+    setDraft((d) => {
+      if (isBlockMarker(d[i]?.action)) {
+        const b = blockBounds(d, i);
+        if (b) {
+          const drop = new Set<number>([
+            b.ifIndex,
+            b.endifIndex,
+            ...(b.elseIndex !== null ? [b.elseIndex] : []),
+          ]);
+          return d.filter((_, idx) => !drop.has(idx));
+        }
+      }
+      return d.filter((_, idx) => idx !== i);
+    });
   const addStep = () =>
     setDraft((d) => [...d, { action: "click", target: "", _k: crypto.randomUUID() }]);
+  // Adds a balanced if-block (if … endif) the user fills in by moving steps between them.
+  const addIfBlock = () =>
+    setDraft((d) => [
+      ...d,
+      { action: "if", condition: { kind: "visible", target: "" }, _k: crypto.randomUUID() },
+      { action: "endif", _k: crypto.randomUUID() },
+    ]);
+  // Inserts an `else` before the matching endif of the block containing marker i (once only).
+  const addElse = (i: number) =>
+    setDraft((d) => {
+      const b = blockBounds(d, i);
+      if (!b || b.elseIndex !== null) return d;
+      const copy = [...d];
+      copy.splice(b.endifIndex, 0, { action: "else", _k: crypto.randomUUID() });
+      return copy;
+    });
   // --- per-step condition guard ("run only if …") ---
   const addCondition = (i: number) => patchStep(i, { condition: { kind: "visible", target: "" } });
   const removeCondition = (i: number) => {
@@ -371,8 +404,23 @@ function TestDetail() {
   const saveSteps = async () => {
     // Validate before persisting so a broken step can't be saved and fail mid-run.
     if (draft.length === 0) return toast.error("Add at least one step.");
+    const blockErr = validateBlocks(draft);
+    if (blockErr) return toast.error(blockErr);
     for (let i = 0; i < draft.length; i++) {
       const s = draft[i];
+      // Block markers carry no locator/value; an `if` just needs its condition filled in.
+      if (isBlockMarker(s.action)) {
+        if (s.action === "if") {
+          const hasCondTarget = !!(s.condition?.locator || (s.condition?.target ?? "").trim());
+          if (!hasCondTarget)
+            return toast.error(
+              `Step ${i + 1}: the "if" needs ${
+                URL_CONDITION_KINDS.has(s.condition?.kind) ? "a URL substring" : "a locator"
+              }.`,
+            );
+        }
+        continue;
+      }
       const hasTarget = !!(s.locator || (s.target ?? "").trim());
       // screenshot is valid with no locator (captures the viewport).
       if (s.action !== "screenshot" && !hasTarget)
@@ -440,6 +488,9 @@ function TestDetail() {
 
   const isApi = test.type === "api";
   const items = isApi ? test.spec?.requests || [] : test.spec?.steps || [];
+  // Indentation depth per row for if/else blocks (browser tests only).
+  const draftDepths = !isApi ? computeDepths(draft) : [];
+  const itemDepths = !isApi ? computeDepths(items) : [];
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-6">
@@ -759,147 +810,234 @@ function TestDetail() {
         </div>
         {editing && !isApi ? (
           <div className="space-y-2">
-            {draft.map((s: any, i: number) => (
-              <div
-                key={s._k ?? i}
-                className="rounded-lg border border-border bg-surface/40 p-2"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}</span>
-                  <select
-                    value={s.action}
-                    onChange={(e) => onActionChange(i, e.target.value)}
-                    className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
+            {draft.map((s: any, i: number) => {
+              const depth = draftDepths[i] ?? 0;
+              const marker = isBlockMarker(s.action);
+              const moveRemove = (
+                <div className="flex items-center ml-auto">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    disabled={i === 0}
+                    onClick={() => moveStep(i, -1)}
+                    title="Move up"
                   >
-                    {STEP_ACTIONS.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </select>
-                  <Input
-                    value={s.locator ? locatorLabel(s.locator) : (s.target ?? "")}
-                    onChange={(e) => setStepTarget(i, e.target.value)}
-                    placeholder={
-                      URL_ACTIONS.has(s.action)
-                        ? "https://… or /path"
-                        : "locator (css, text=…, role=…)"
-                    }
-                    className="bg-input/50 text-xs font-mono flex-1 min-w-[180px]"
-                  />
-                  {VALUE_ACTIONS.has(s.action) && (
-                    <Input
-                      value={s.value ?? ""}
-                      onChange={(e) => patchStep(i, { value: e.target.value })}
-                      placeholder="value"
-                      className="bg-input/50 text-xs font-mono w-32"
-                    />
-                  )}
-                  <div className="flex items-center">
-                    {!s.condition && s.action !== "goto" && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => addCondition(i)}
-                        title="Add condition (run only if…)"
-                      >
-                        <GitBranch className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      disabled={i === 0}
-                      onClick={() => moveStep(i, -1)}
-                      title="Move up"
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      disabled={i === draft.length - 1}
-                      onClick={() => moveStep(i, 1)}
-                      title="Move down"
-                    >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => removeStep(i)}
-                      title="Remove step"
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    disabled={i === draft.length - 1}
+                    onClick={() => moveStep(i, 1)}
+                    title="Move down"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeStep(i)}
+                    title={marker ? "Remove block" : "Remove step"}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
-                {s.condition && (
-                  <div className="flex flex-wrap items-center gap-2 mt-2 ml-7 pl-2 border-l-2 border-primary/40">
-                    <span className="text-[11px] uppercase tracking-wide text-primary-glow">
-                      only if
-                    </span>
-                    <select
-                      value={s.condition.kind}
-                      onChange={(e) => setConditionKind(i, e.target.value as ConditionKind)}
-                      className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
-                    >
-                      {CONDITION_KINDS.map((k) => (
-                        <option key={k} value={k}>
-                          {k.replace("_", " ")}
-                        </option>
-                      ))}
-                    </select>
-                    <Input
-                      value={
-                        s.condition.locator
-                          ? locatorLabel(s.condition.locator)
-                          : (s.condition.target ?? "")
-                      }
-                      onChange={(e) =>
-                        patchCondition(i, { target: e.target.value, locator: undefined })
-                      }
-                      placeholder={
-                        URL_CONDITION_KINDS.has(s.condition.kind)
-                          ? "url substring"
-                          : "locator (css, text=…, role=…)"
-                      }
-                      className="bg-input/50 text-xs font-mono flex-1 min-w-[160px]"
-                    />
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => removeCondition(i)}
-                      title="Remove condition"
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
-            <Button size="sm" variant="outline" onClick={addStep}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Add step
-            </Button>
+              );
+              return (
+                <div
+                  key={s._k ?? i}
+                  style={{ marginLeft: depth * 20 }}
+                  className={`rounded-lg border p-2 ${marker ? "border-primary/40 bg-primary/10" : "border-border bg-surface/40"}`}
+                >
+                  {marker ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}</span>
+                      {s.action === "if" ? (
+                        <>
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-primary-glow">
+                            if
+                          </span>
+                          <select
+                            value={s.condition?.kind ?? "visible"}
+                            onChange={(e) => setConditionKind(i, e.target.value as ConditionKind)}
+                            className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
+                          >
+                            {CONDITION_KINDS.map((k) => (
+                              <option key={k} value={k}>
+                                {k.replace("_", " ")}
+                              </option>
+                            ))}
+                          </select>
+                          <Input
+                            value={
+                              s.condition?.locator
+                                ? locatorLabel(s.condition.locator)
+                                : (s.condition?.target ?? "")
+                            }
+                            onChange={(e) =>
+                              patchCondition(i, { target: e.target.value, locator: undefined })
+                            }
+                            placeholder={
+                              URL_CONDITION_KINDS.has(s.condition?.kind)
+                                ? "url substring"
+                                : "locator (css, text=…, role=…)"
+                            }
+                            className="bg-input/50 text-xs font-mono flex-1 min-w-[160px]"
+                          />
+                          {blockBounds(draft, i)?.elseIndex == null && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => addElse(i)}
+                              title="Add an else branch"
+                              className="text-xs"
+                            >
+                              + else
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-primary-glow">
+                          {s.action === "else" ? "else" : "end if"}
+                        </span>
+                      )}
+                      {moveRemove}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}</span>
+                        <select
+                          value={s.action}
+                          onChange={(e) => onActionChange(i, e.target.value)}
+                          className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
+                        >
+                          {STEP_ACTIONS.map((a) => (
+                            <option key={a} value={a}>
+                              {a}
+                            </option>
+                          ))}
+                        </select>
+                        <Input
+                          value={s.locator ? locatorLabel(s.locator) : (s.target ?? "")}
+                          onChange={(e) => setStepTarget(i, e.target.value)}
+                          placeholder={
+                            URL_ACTIONS.has(s.action)
+                              ? "https://… or /path"
+                              : "locator (css, text=…, role=…)"
+                          }
+                          className="bg-input/50 text-xs font-mono flex-1 min-w-[180px]"
+                        />
+                        {VALUE_ACTIONS.has(s.action) && (
+                          <Input
+                            value={s.value ?? ""}
+                            onChange={(e) => patchStep(i, { value: e.target.value })}
+                            placeholder="value"
+                            className="bg-input/50 text-xs font-mono w-32"
+                          />
+                        )}
+                        {!s.condition && s.action !== "goto" && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => addCondition(i)}
+                            title="Add condition (run only if…)"
+                          >
+                            <GitBranch className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {moveRemove}
+                      </div>
+                      {s.condition && (
+                        <div className="flex flex-wrap items-center gap-2 mt-2 ml-7 pl-2 border-l-2 border-primary/40">
+                          <span className="text-[11px] uppercase tracking-wide text-primary-glow">
+                            only if
+                          </span>
+                          <select
+                            value={s.condition.kind}
+                            onChange={(e) => setConditionKind(i, e.target.value as ConditionKind)}
+                            className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
+                          >
+                            {CONDITION_KINDS.map((k) => (
+                              <option key={k} value={k}>
+                                {k.replace("_", " ")}
+                              </option>
+                            ))}
+                          </select>
+                          <Input
+                            value={
+                              s.condition.locator
+                                ? locatorLabel(s.condition.locator)
+                                : (s.condition.target ?? "")
+                            }
+                            onChange={(e) =>
+                              patchCondition(i, { target: e.target.value, locator: undefined })
+                            }
+                            placeholder={
+                              URL_CONDITION_KINDS.has(s.condition.kind)
+                                ? "url substring"
+                                : "locator (css, text=…, role=…)"
+                            }
+                            className="bg-input/50 text-xs font-mono flex-1 min-w-[160px]"
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => removeCondition(i)}
+                            title="Remove condition"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={addStep}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add step
+              </Button>
+              <Button size="sm" variant="outline" onClick={addIfBlock}>
+                <GitBranch className="h-3.5 w-3.5 mr-1" /> Add if-block
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
             {items.map((s: any, i: number) => (
-              <div key={i} className="rounded-lg border border-border bg-surface/40 p-3">
+              <div
+                key={i}
+                style={{ marginLeft: !isApi ? (itemDepths[i] ?? 0) * 20 : 0 }}
+                className={`rounded-lg border p-3 ${
+                  !isApi && isBlockMarker(s.action)
+                    ? "border-primary/40 bg-primary/10"
+                    : "border-border bg-surface/40"
+                }`}
+              >
                 <div className="flex items-center gap-3 font-mono text-sm">
                   <span className="text-xs text-muted-foreground w-6">{i + 1}</span>
                   <Badge variant="secondary" className="text-xs">
-                    {isApi ? s.method : s.action}
+                    {isApi ? s.method : s.action === "endif" ? "end if" : s.action}
                   </Badge>
                   <span className="flex-1 truncate">
-                    {isApi ? s.url : s.locator ? locatorLabel(s.locator) : s.target}
+                    {isApi
+                      ? s.url
+                      : isBlockMarker(s.action)
+                        ? s.action === "if" && s.condition
+                          ? conditionLabel(s.condition)
+                          : ""
+                        : s.locator
+                          ? locatorLabel(s.locator)
+                          : s.target}
                   </span>
-                  {!isApi && s.value && (
+                  {!isApi && !isBlockMarker(s.action) && s.value && (
                     <span className="text-xs text-muted-foreground">"{s.value}"</span>
                   )}
-                  {!isApi && (
+                  {!isApi && !isBlockMarker(s.action) && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -916,7 +1054,7 @@ function TestDetail() {
                     </Button>
                   )}
                 </div>
-                {!isApi && s.condition && (
+                {!isApi && s.condition && !isBlockMarker(s.action) && (
                   <div className="text-xs text-primary-glow mt-1 ml-9 flex items-center gap-1 font-mono">
                     <GitBranch className="h-3 w-3" /> {conditionLabel(s.condition)}
                   </div>
