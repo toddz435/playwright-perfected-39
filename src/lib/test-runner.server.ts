@@ -28,16 +28,31 @@ async function runVisualDiffs(
   const captureId = crypto.randomUUID();
   let anyFailed = false;
 
+  // A null download means the baseline is missing OR the download errored transiently
+  // (network / RLS / 5xx). Only the genuine "object not found" case may create a baseline;
+  // anything else must NOT clobber a possibly-existing baseline.
+  const isNotFound = (e: any) => {
+    if (!e) return true; // no error AND no data → treat as missing
+    const code = String(e.statusCode ?? e.status ?? e.originalError?.status ?? "");
+    const msg = (e.message || "").toLowerCase();
+    return code === "404" || msg.includes("not found") || msg.includes("does not exist");
+  };
+
   for (const step of shots) {
     const actual = Buffer.from(step.screenshot, "base64");
     delete step.screenshot; // never persist the raw base64 on the run record
     const baselinePath = `${ownerId}/${testId}/baseline-${step.idx}.png`;
     try {
-      const { data: dl } = await bucket.download(baselinePath);
+      const { data: dl, error: dlErr } = await bucket.download(baselinePath);
       if (!dl) {
+        // Surface transient/permission failures as an error instead of silently
+        // re-baselining against this run's (possibly broken) capture.
+        if (!isNotFound(dlErr)) throw dlErr ?? new Error("baseline download failed");
+        // upsert:false so a baseline that exists but failed to download is never
+        // overwritten — the upload fails and we fall through to the catch.
         const up = await bucket.upload(baselinePath, pngBlob(actual), {
           contentType: "image/png",
-          upsert: true,
+          upsert: false,
         });
         if (up.error) throw up.error;
         step.visual = "baseline_created";
@@ -46,22 +61,11 @@ async function runVisualDiffs(
       }
       const baseline = Buffer.from(await dl.arrayBuffer());
       const diff = await compareVisual(baseline, actual);
-      const base = `${ownerId}/${testId}/captures/${captureId}-${step.idx}`;
-      await bucket.upload(`${base}-actual.png`, pngBlob(actual), {
-        contentType: "image/png",
-        upsert: true,
-      });
+      // Decide the pass/fail verdict BEFORE any upload, so a later upload failure
+      // can never downgrade a real regression to a benign "storage error".
       step.baseline_path = baselinePath;
-      step.actual_path = `${base}-actual.png`;
       step.diff_ratio = diff.diffRatio;
       step.dims_match = diff.dimsMatch;
-      if (diff.diffPng) {
-        await bucket.upload(`${base}-diff.png`, pngBlob(diff.diffPng), {
-          contentType: "image/png",
-          upsert: true,
-        });
-        step.diff_path = `${base}-diff.png`;
-      }
       if (diff.diffRatio > VISUAL_DIFF_THRESHOLD) {
         step.visual = "diff";
         step.status = "failed";
@@ -71,6 +75,25 @@ async function runVisualDiffs(
         anyFailed = true;
       } else {
         step.visual = "match";
+      }
+      // Best-effort: persist actual/diff images for the viewer. A failure here records
+      // capture_error but must not change the verdict already set above.
+      try {
+        const base = `${ownerId}/${testId}/captures/${captureId}-${step.idx}`;
+        await bucket.upload(`${base}-actual.png`, pngBlob(actual), {
+          contentType: "image/png",
+          upsert: true,
+        });
+        step.actual_path = `${base}-actual.png`;
+        if (diff.diffPng) {
+          await bucket.upload(`${base}-diff.png`, pngBlob(diff.diffPng), {
+            contentType: "image/png",
+            upsert: true,
+          });
+          step.diff_path = `${base}-diff.png`;
+        }
+      } catch (e: any) {
+        step.capture_error = e?.message || "capture upload failed";
       }
     } catch (e: any) {
       // Storage not configured / RLS / network — don't fail the run on infra; flag it.
