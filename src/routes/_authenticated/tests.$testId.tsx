@@ -372,6 +372,14 @@ function TestDetail() {
       copy.splice(b.endifIndex, 0, { action: "else", _k: crypto.randomUUID() });
       return copy;
     });
+  // Inserts a new blank step immediately after a marker (if/else) so it lands INSIDE the
+  // block without arrow-shuffling.
+  const addStepInside = (i: number) =>
+    setDraft((d) => {
+      const copy = [...d];
+      copy.splice(i + 1, 0, { action: "click", target: "", _k: crypto.randomUUID() });
+      return copy;
+    });
   // --- per-step condition guard ("run only if …") ---
   const addCondition = (i: number) => patchStep(i, { condition: { kind: "visible", target: "" } });
   const removeCondition = (i: number) => {
@@ -885,6 +893,15 @@ function TestDetail() {
                             }
                             className="bg-input/50 text-xs font-mono flex-1 min-w-[160px]"
                           />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => addStepInside(i)}
+                            title="Add a step inside this block"
+                            className="text-xs"
+                          >
+                            + step
+                          </Button>
                           {blockBounds(draft, i)?.elseIndex == null && (
                             <Button
                               size="sm"
@@ -898,9 +915,22 @@ function TestDetail() {
                           )}
                         </>
                       ) : (
-                        <span className="text-[11px] font-bold uppercase tracking-wide text-primary-glow">
-                          {s.action === "else" ? "else" : "end if"}
-                        </span>
+                        <>
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-primary-glow">
+                            {s.action === "else" ? "else" : "end if"}
+                          </span>
+                          {s.action === "else" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => addStepInside(i)}
+                              title="Add a step to the else branch"
+                              className="text-xs"
+                            >
+                              + step
+                            </Button>
+                          )}
+                        </>
                       )}
                       {moveRemove}
                     </div>
