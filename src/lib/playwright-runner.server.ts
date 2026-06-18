@@ -13,6 +13,7 @@ import {
   conditionSrc,
   URL_CONDITION_KINDS,
 } from "@/lib/conditions";
+import { validateBlocks, isBlockMarker } from "@/lib/blocks";
 
 export type Step = {
   action: string;
@@ -97,6 +98,13 @@ async function evalCondition(page: any, cond: StepCondition): Promise<boolean> {
   }
 }
 
+// One open if-block. `condTrue` = the if's condition result; `inElse` = we're past the `else`.
+// The frame's body executes when (then-branch && condTrue) or (else-branch && !condTrue).
+type CtrlFrame = { condTrue: boolean; inElse: boolean };
+const frameRuns = (f: CtrlFrame) => (f.inElse ? !f.condTrue : f.condTrue);
+// A step executes only if every enclosing block frame is currently running its branch.
+const blockActive = (ctrl: CtrlFrame[]) => ctrl.every(frameRuns);
+
 export type StepStatus = "passed" | "failed" | "skipped" | "healed";
 
 export type StepResult = {
@@ -159,10 +167,25 @@ export async function runBrowserSteps(
   steps: Step[],
   opts: RunOptions = {},
 ): Promise<{ status: "passed" | "failed"; steps: StepResult[] }> {
-  const startIdx = Math.max(0, opts.startIdx ?? 0);
+  // Resume-from-failed can't reconstruct the if/else control stack for the skipped prefix
+  // (conditions can't be re-evaluated without replaying the page), so a test that uses blocks
+  // always runs from the start — correct results beat an unsound partial resume.
+  const hasBlocks = steps.some((s) => isBlockMarker(s.action));
+  const startIdx = hasBlocks ? 0 : Math.max(0, opts.startIdx ?? 0);
   const stepTimeout = opts.stepTimeoutMs ?? 8000;
   const gotoTimeout = opts.gotoTimeoutMs ?? 15000;
   const headless = opts.headless ?? true;
+
+  // Defensive: the editor validates block balance on save, but a spec could reach the runner
+  // unbalanced (API/import/older data). Fail fast with a clear error rather than silently
+  // mis-gating steps (e.g. a missing `endif` would gate everything after it).
+  const blockErr = validateBlocks(steps);
+  if (blockErr) {
+    return {
+      status: "failed",
+      steps: [{ idx: 0, status: "failed", action: "blocks", error: blockErr }],
+    };
+  }
 
   // Dynamic import keeps Playwright out of the (Cloudflare) bundle graph.
   const { chromium } = await import("@playwright/test");
@@ -173,6 +196,8 @@ export async function runBrowserSteps(
 
   const results: StepResult[] = [];
   let status: "passed" | "failed" = "passed";
+  // Control-flow stack for if/else blocks: one frame per open `if`.
+  const ctrl: CtrlFrame[] = [];
 
   // Executes one selector-based action against a given selector. Throws LocatorError
   // when the element can't be found/interacted-with, AssertionError on value mismatch.
@@ -267,6 +292,39 @@ export async function runBrowserSteps(
           action: s.action,
           target: s.locator ? locatorLabel(s.locator) : s.target,
           value: s.value,
+        });
+        continue;
+      }
+
+      // --- control-flow markers (if / else / endif) — see src/lib/blocks.ts ---
+      // A frame runs its body when: (then-branch && condition true) OR (else-branch && false).
+      // Markers don't emit a StepResult (they aren't real steps — that would inflate the
+      // run's step counts); the taken/skipped body steps already show the branch outcome.
+      if (s.action === "if") {
+        const parentActive = blockActive(ctrl);
+        // Only evaluate the condition when the enclosing block is actually executing.
+        const condTrue =
+          parentActive && s.condition ? await evalCondition(page, s.condition) : false;
+        ctrl.push({ condTrue: parentActive ? condTrue : false, inElse: false });
+        continue;
+      }
+      if (s.action === "else") {
+        if (ctrl.length) ctrl[ctrl.length - 1].inElse = true;
+        continue;
+      }
+      if (s.action === "endif") {
+        if (ctrl.length) ctrl.pop();
+        continue;
+      }
+      // Inside a branch that isn't executing → skip this step (never fails the run).
+      if (!blockActive(ctrl)) {
+        results.push({
+          idx: i,
+          status: "skipped",
+          action: s.action,
+          target: s.locator ? locatorLabel(s.locator) : s.target,
+          value: s.value,
+          skipped_reason: "branch not taken",
         });
         continue;
       }
