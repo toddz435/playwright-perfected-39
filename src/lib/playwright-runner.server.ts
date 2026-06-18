@@ -60,6 +60,9 @@ export type StepResult = {
   // How a healed step recovered, and the locator that worked (for persistence — Phase D).
   recovery?: "fallback" | "ai";
   new_locator?: Locator | string;
+  // Base64 PNG captured by a `screenshot` step (consumed/cleared by the runner's
+  // visual-regression diff in executeTest; never persisted as base64).
+  screenshot?: string;
 };
 
 // Called when a selector-based step fails to locate its element. Returns a replacement
@@ -231,6 +234,39 @@ export async function runBrowserSteps(
           target: s.locator ? locatorLabel(s.locator) : s.target,
           duration_ms: Date.now() - sStart,
         });
+        continue;
+      }
+
+      // Visual regression: capture a PNG (element if a locator is given, else viewport;
+      // value "fullPage" → full page). The pass/fail diff verdict is decided in executeTest.
+      if (s.action === "screenshot") {
+        const locSrc = s.locator ?? s.target;
+        const label = locSrc ? locatorLabel(locSrc) : "(viewport)";
+        try {
+          const buf =
+            locSrc != null
+              ? await resolveLocator(page, locSrc).first().screenshot({ timeout: stepTimeout })
+              : await page.screenshot({ fullPage: s.value === "fullPage" });
+          results.push({
+            idx: i,
+            status: "passed",
+            action: "screenshot",
+            target: label,
+            duration_ms: Date.now() - sStart,
+            screenshot: buf.toString("base64"),
+          });
+        } catch (e: any) {
+          results.push({
+            idx: i,
+            status: "failed",
+            action: "screenshot",
+            target: label,
+            duration_ms: Date.now() - sStart,
+            error: e?.message || "screenshot failed",
+          });
+          status = "failed";
+          break;
+        }
         continue;
       }
 

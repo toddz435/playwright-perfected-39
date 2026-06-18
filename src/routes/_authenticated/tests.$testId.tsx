@@ -32,6 +32,7 @@ import {
   Braces,
   Eye,
   EyeOff,
+  Image as ImageIcon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -46,6 +47,7 @@ const STEP_ACTIONS = [
   "click",
   "fill",
   "press",
+  "screenshot",
   "expect_visible",
   "expect_text",
   "expect_value",
@@ -285,7 +287,8 @@ function TestDetail() {
     for (let i = 0; i < draft.length; i++) {
       const s = draft[i];
       const hasTarget = !!(s.locator || (s.target ?? "").trim());
-      if (!hasTarget)
+      // screenshot is valid with no locator (captures the viewport).
+      if (s.action !== "screenshot" && !hasTarget)
         return toast.error(
           `Step ${i + 1}: add a ${URL_ACTIONS.has(s.action) ? "URL" : "locator"}.`,
         );
@@ -880,6 +883,39 @@ function TestDetail() {
                             <span className="text-muted-foreground">
                               {" "}
                               · {s.recovery === "fallback" ? "via fallback" : "AI"}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+                {(r.steps || []).some((s: any) => s.action === "screenshot") && (
+                  <div className="mt-3 rounded-md border border-border bg-surface/40 p-3 text-sm">
+                    <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                      <ImageIcon className="h-3 w-3" /> VISUAL REGRESSION
+                    </div>
+                    {(r.steps || [])
+                      .filter((s: any) => s.action === "screenshot")
+                      .map((s: any) => (
+                        <div key={s.idx} className="font-mono text-xs mb-1">
+                          <span className="text-muted-foreground">
+                            step {s.idx + 1} ({s.target}):
+                          </span>{" "}
+                          {s.visual === "baseline_created" ? (
+                            <span className="text-primary-glow">baseline created</span>
+                          ) : s.visual === "match" ? (
+                            <span className="text-success">
+                              match ({((s.diff_ratio ?? 0) * 100).toFixed(2)}%)
+                            </span>
+                          ) : s.visual === "diff" ? (
+                            <span className="text-destructive">
+                              {s.dims_match === false
+                                ? "size changed"
+                                : `changed ${((s.diff_ratio ?? 0) * 100).toFixed(2)}%`}
+                            </span>
+                          ) : (
+                            <span className="text-amber-500">
+                              storage not set up{s.visual_error ? ` — ${s.visual_error}` : ""}
                             </span>
                           )}
                         </div>

@@ -6,7 +6,80 @@ import { runBrowserSteps } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
 import { interpolate, specVars, secretValues, maskSecrets } from "@/lib/vars";
+import { compareVisual } from "@/lib/visual.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+// A screenshot step fails the run when more than this fraction of pixels differ.
+const VISUAL_DIFF_THRESHOLD = 0.005; // 0.5%
+
+// For each `screenshot` step result (carrying a base64 capture), compare against the stored
+// baseline in Storage (or create it on first run), upload actual/diff images, and write
+// references + verdict onto the step. Degrades gracefully if Storage isn't set up yet.
+async function runVisualDiffs(
+  sb: SupabaseClient,
+  ownerId: string,
+  testId: string,
+  steps: any[],
+): Promise<boolean> {
+  const shots = steps.filter((s) => s.action === "screenshot" && s.screenshot);
+  if (!shots.length) return false;
+  const pngBlob = (b: Buffer) => new Blob([new Uint8Array(b)], { type: "image/png" });
+  const bucket = sb.storage.from("screenshots");
+  const captureId = crypto.randomUUID();
+  let anyFailed = false;
+
+  for (const step of shots) {
+    const actual = Buffer.from(step.screenshot, "base64");
+    delete step.screenshot; // never persist the raw base64 on the run record
+    const baselinePath = `${ownerId}/${testId}/baseline-${step.idx}.png`;
+    try {
+      const { data: dl } = await bucket.download(baselinePath);
+      if (!dl) {
+        const up = await bucket.upload(baselinePath, pngBlob(actual), {
+          contentType: "image/png",
+          upsert: true,
+        });
+        if (up.error) throw up.error;
+        step.visual = "baseline_created";
+        step.baseline_path = baselinePath;
+        continue;
+      }
+      const baseline = Buffer.from(await dl.arrayBuffer());
+      const diff = await compareVisual(baseline, actual);
+      const base = `${ownerId}/${testId}/captures/${captureId}-${step.idx}`;
+      await bucket.upload(`${base}-actual.png`, pngBlob(actual), {
+        contentType: "image/png",
+        upsert: true,
+      });
+      step.baseline_path = baselinePath;
+      step.actual_path = `${base}-actual.png`;
+      step.diff_ratio = diff.diffRatio;
+      step.dims_match = diff.dimsMatch;
+      if (diff.diffPng) {
+        await bucket.upload(`${base}-diff.png`, pngBlob(diff.diffPng), {
+          contentType: "image/png",
+          upsert: true,
+        });
+        step.diff_path = `${base}-diff.png`;
+      }
+      if (diff.diffRatio > VISUAL_DIFF_THRESHOLD) {
+        step.visual = "diff";
+        step.status = "failed";
+        step.error = diff.dimsMatch
+          ? `Visual diff ${(diff.diffRatio * 100).toFixed(2)}%`
+          : "Screenshot dimensions changed";
+        anyFailed = true;
+      } else {
+        step.visual = "match";
+      }
+    } catch (e: any) {
+      // Storage not configured / RLS / network — don't fail the run on infra; flag it.
+      step.visual = "error";
+      step.visual_error = e?.message || "screenshot storage unavailable";
+    }
+  }
+  return anyFailed;
+}
 
 // Accepts either the token-scoped (RLS) client or the service-role admin client.
 type SupabaseClientLike = SupabaseClient;
@@ -134,6 +207,9 @@ export async function executeTest(
     const result = await runBrowserSteps(runSteps, { startIdx, heal });
     stepResults.push(...result.steps);
     if (result.status === "failed") status = "failed";
+    // Visual regression: diff any screenshot steps against their stored baselines.
+    const visualFailed = await runVisualDiffs(sb, ownerId, test.id, result.steps);
+    if (visualFailed) status = "failed";
     // Recover against the ORIGINAL steps so persisted locators retain any {{vars}}.
     const { steps: stabilized, changed } = applyRecoveries(steps, result.steps);
     if (changed > 0) stabilizedSteps = stabilized;
