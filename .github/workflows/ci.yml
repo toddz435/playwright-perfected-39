@@ -17,7 +17,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # --ignore-scripts skips dependency install scripts (notably @playwright/test's
+      # browser download — hundreds of MB that fail/aren't needed on CI). The typecheck and
+      # pure unit tests need no browser/native binaries; esbuild's binary ships via its
+      # platform optional-dep, not a script, so vitest still works.
+      - run: npm ci --ignore-scripts
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Unit tests
