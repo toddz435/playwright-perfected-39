@@ -15,7 +15,7 @@ export function validateBlocks(steps: HasAction[]): string | null {
     const a = steps[i].action;
     if (a === "if") {
       depth++;
-      elseSeen[depth] = false;
+      elseSeen[depth] = false; // reset per if so sibling blocks at the same depth each allow an else
     } else if (a === "else") {
       if (depth === 0) return `Step ${i + 1}: "else" is outside an if-block.`;
       if (elseSeen[depth]) return `Step ${i + 1}: an if-block can have only one "else".`;

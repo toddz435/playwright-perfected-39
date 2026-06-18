@@ -13,6 +13,7 @@ import {
   conditionSrc,
   URL_CONDITION_KINDS,
 } from "@/lib/conditions";
+import { validateBlocks, isBlockMarker } from "@/lib/blocks";
 
 export type Step = {
   action: string;
@@ -166,10 +167,25 @@ export async function runBrowserSteps(
   steps: Step[],
   opts: RunOptions = {},
 ): Promise<{ status: "passed" | "failed"; steps: StepResult[] }> {
-  const startIdx = Math.max(0, opts.startIdx ?? 0);
+  // Resume-from-failed can't reconstruct the if/else control stack for the skipped prefix
+  // (conditions can't be re-evaluated without replaying the page), so a test that uses blocks
+  // always runs from the start — correct results beat an unsound partial resume.
+  const hasBlocks = steps.some((s) => isBlockMarker(s.action));
+  const startIdx = hasBlocks ? 0 : Math.max(0, opts.startIdx ?? 0);
   const stepTimeout = opts.stepTimeoutMs ?? 8000;
   const gotoTimeout = opts.gotoTimeoutMs ?? 15000;
   const headless = opts.headless ?? true;
+
+  // Defensive: the editor validates block balance on save, but a spec could reach the runner
+  // unbalanced (API/import/older data). Fail fast with a clear error rather than silently
+  // mis-gating steps (e.g. a missing `endif` would gate everything after it).
+  const blockErr = validateBlocks(steps);
+  if (blockErr) {
+    return {
+      status: "failed",
+      steps: [{ idx: 0, status: "failed", action: "blocks", error: blockErr }],
+    };
+  }
 
   // Dynamic import keeps Playwright out of the (Cloudflare) bundle graph.
   const { chromium } = await import("@playwright/test");
@@ -282,29 +298,22 @@ export async function runBrowserSteps(
 
       // --- control-flow markers (if / else / endif) — see src/lib/blocks.ts ---
       // A frame runs its body when: (then-branch && condition true) OR (else-branch && false).
+      // Markers don't emit a StepResult (they aren't real steps — that would inflate the
+      // run's step counts); the taken/skipped body steps already show the branch outcome.
       if (s.action === "if") {
         const parentActive = blockActive(ctrl);
         // Only evaluate the condition when the enclosing block is actually executing.
         const condTrue =
           parentActive && s.condition ? await evalCondition(page, s.condition) : false;
         ctrl.push({ condTrue: parentActive ? condTrue : false, inElse: false });
-        results.push({
-          idx: i,
-          status: parentActive ? "passed" : "skipped",
-          action: "if",
-          target: s.condition ? conditionLabel(s.condition) : "",
-          ...(parentActive ? {} : { skipped_reason: "branch not taken" }),
-        });
         continue;
       }
       if (s.action === "else") {
         if (ctrl.length) ctrl[ctrl.length - 1].inElse = true;
-        results.push({ idx: i, status: "passed", action: "else" });
         continue;
       }
       if (s.action === "endif") {
         if (ctrl.length) ctrl.pop();
-        results.push({ idx: i, status: "passed", action: "endif" });
         continue;
       }
       // Inside a branch that isn't executing → skip this step (never fails the run).
