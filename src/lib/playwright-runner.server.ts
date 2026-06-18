@@ -240,7 +240,12 @@ export async function runBrowserSteps(
       // Visual regression: capture a PNG (element if a locator is given, else viewport;
       // value "fullPage" → full page). The pass/fail diff verdict is decided in executeTest.
       if (s.action === "screenshot") {
-        const locSrc = s.locator ?? s.target;
+        // An empty/whitespace target means "no locator → capture the viewport". `??` alone
+        // doesn't catch "" (an empty string is not null), which would otherwise be parsed
+        // as a CSS selector and throw "Unexpected token while parsing css selector".
+        const rawLoc = s.locator ?? s.target;
+        const locSrc =
+          rawLoc == null || (typeof rawLoc === "string" && rawLoc.trim() === "") ? null : rawLoc;
         const label = locSrc ? locatorLabel(locSrc) : "(viewport)";
         try {
           const buf =

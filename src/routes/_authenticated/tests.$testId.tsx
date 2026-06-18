@@ -913,10 +913,16 @@ function TestDetail() {
                                 ? "size changed"
                                 : `changed ${((s.diff_ratio ?? 0) * 100).toFixed(2)}%`}
                             </span>
-                          ) : (
+                          ) : s.visual === "error" ? (
                             <span className="text-amber-500">
                               storage not set up{s.visual_error ? ` — ${s.visual_error}` : ""}
                             </span>
+                          ) : s.status === "failed" ? (
+                            <span className="text-destructive">
+                              capture failed{s.error ? ` — ${s.error}` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-amber-500">storage not set up</span>
                           )}
                         </div>
                       ))}
