@@ -7,6 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { locatorLabel } from "@/lib/locator";
+import {
+  CONDITION_KINDS,
+  URL_CONDITION_KINDS,
+  conditionLabel,
+  type ConditionKind,
+} from "@/lib/conditions";
 import { advisoriesToMarkdown } from "@/lib/advisory-format";
 import { specVars } from "@/lib/vars";
 import { toast } from "sonner";
@@ -25,6 +31,7 @@ import {
   Trash2,
   Pencil,
   ArrowUp,
+  GitBranch,
   ArrowDown,
   Plus,
   Save,
@@ -329,6 +336,21 @@ function TestDetail() {
   const removeStep = (i: number) => setDraft((d) => d.filter((_, idx) => idx !== i));
   const addStep = () =>
     setDraft((d) => [...d, { action: "click", target: "", _k: crypto.randomUUID() }]);
+  // --- per-step condition guard ("run only if …") ---
+  const addCondition = (i: number) => patchStep(i, { condition: { kind: "visible", target: "" } });
+  const removeCondition = (i: number) => {
+    setDraft((d) =>
+      d.map((s, idx) => {
+        if (idx !== i) return s;
+        const { condition, ...rest } = s;
+        return rest;
+      }),
+    );
+  };
+  const patchCondition = (i: number, patch: any) =>
+    setDraft((d) =>
+      d.map((s, idx) => (idx === i ? { ...s, condition: { ...s.condition, ...patch } } : s)),
+    );
   const saveSteps = async () => {
     // Validate before persisting so a broken step can't be saved and fail mid-run.
     if (draft.length === 0) return toast.error("Add at least one step.");
@@ -344,6 +366,15 @@ function TestDetail() {
         return toast.error(`Step ${i + 1}: expect_count needs a number.`);
       if ((s.action === "expect_text" || s.action === "expect_value") && !(s.value ?? "").trim())
         return toast.error(`Step ${i + 1}: ${s.action} needs a value.`);
+      if (s.condition) {
+        const hasCondTarget = !!(s.condition.locator || (s.condition.target ?? "").trim());
+        if (!hasCondTarget)
+          return toast.error(
+            `Step ${i + 1}: the condition needs ${
+              URL_CONDITION_KINDS.has(s.condition.kind) ? "a URL substring" : "a locator"
+            }.`,
+          );
+      }
     }
     setSavingSteps(true);
     const steps = draft.map(({ _k, ...s }: any) => {
@@ -714,67 +745,122 @@ function TestDetail() {
             {draft.map((s: any, i: number) => (
               <div
                 key={s._k ?? i}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface/40 p-2"
+                className="rounded-lg border border-border bg-surface/40 p-2"
               >
-                <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}</span>
-                <select
-                  value={s.action}
-                  onChange={(e) => onActionChange(i, e.target.value)}
-                  className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
-                >
-                  {STEP_ACTIONS.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  value={s.locator ? locatorLabel(s.locator) : (s.target ?? "")}
-                  onChange={(e) => setStepTarget(i, e.target.value)}
-                  placeholder={
-                    URL_ACTIONS.has(s.action)
-                      ? "https://… or /path"
-                      : "locator (css, text=…, role=…)"
-                  }
-                  className="bg-input/50 text-xs font-mono flex-1 min-w-[180px]"
-                />
-                {VALUE_ACTIONS.has(s.action) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}</span>
+                  <select
+                    value={s.action}
+                    onChange={(e) => onActionChange(i, e.target.value)}
+                    className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
+                  >
+                    {STEP_ACTIONS.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
                   <Input
-                    value={s.value ?? ""}
-                    onChange={(e) => patchStep(i, { value: e.target.value })}
-                    placeholder="value"
-                    className="bg-input/50 text-xs font-mono w-32"
+                    value={s.locator ? locatorLabel(s.locator) : (s.target ?? "")}
+                    onChange={(e) => setStepTarget(i, e.target.value)}
+                    placeholder={
+                      URL_ACTIONS.has(s.action)
+                        ? "https://… or /path"
+                        : "locator (css, text=…, role=…)"
+                    }
+                    className="bg-input/50 text-xs font-mono flex-1 min-w-[180px]"
                   />
-                )}
-                <div className="flex items-center">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    disabled={i === 0}
-                    onClick={() => moveStep(i, -1)}
-                    title="Move up"
-                  >
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    disabled={i === draft.length - 1}
-                    onClick={() => moveStep(i, 1)}
-                    title="Move down"
-                  >
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => removeStep(i)}
-                    title="Remove step"
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {VALUE_ACTIONS.has(s.action) && (
+                    <Input
+                      value={s.value ?? ""}
+                      onChange={(e) => patchStep(i, { value: e.target.value })}
+                      placeholder="value"
+                      className="bg-input/50 text-xs font-mono w-32"
+                    />
+                  )}
+                  <div className="flex items-center">
+                    {!s.condition && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => addCondition(i)}
+                        title="Add condition (run only if…)"
+                      >
+                        <GitBranch className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={i === 0}
+                      onClick={() => moveStep(i, -1)}
+                      title="Move up"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={i === draft.length - 1}
+                      onClick={() => moveStep(i, 1)}
+                      title="Move down"
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeStep(i)}
+                      title="Remove step"
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
+                {s.condition && (
+                  <div className="flex flex-wrap items-center gap-2 mt-2 ml-7 pl-2 border-l-2 border-primary/40">
+                    <span className="text-[11px] uppercase tracking-wide text-primary-glow">
+                      only if
+                    </span>
+                    <select
+                      value={s.condition.kind}
+                      onChange={(e) => patchCondition(i, { kind: e.target.value as ConditionKind })}
+                      className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs font-mono"
+                    >
+                      {CONDITION_KINDS.map((k) => (
+                        <option key={k} value={k}>
+                          {k.replace("_", " ")}
+                        </option>
+                      ))}
+                    </select>
+                    <Input
+                      value={
+                        s.condition.locator
+                          ? locatorLabel(s.condition.locator)
+                          : (s.condition.target ?? "")
+                      }
+                      onChange={(e) =>
+                        patchCondition(i, { target: e.target.value, locator: undefined })
+                      }
+                      placeholder={
+                        URL_CONDITION_KINDS.has(s.condition.kind)
+                          ? "url substring"
+                          : "locator (css, text=…, role=…)"
+                      }
+                      className="bg-input/50 text-xs font-mono flex-1 min-w-[160px]"
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeCondition(i)}
+                      title="Remove condition"
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
             <Button size="sm" variant="outline" onClick={addStep}>
@@ -813,6 +899,11 @@ function TestDetail() {
                     </Button>
                   )}
                 </div>
+                {!isApi && s.condition && (
+                  <div className="text-xs text-primary-glow mt-1 ml-9 flex items-center gap-1 font-mono">
+                    <GitBranch className="h-3 w-3" /> {conditionLabel(s.condition)}
+                  </div>
+                )}
                 {!isApi && s.rationale && (
                   <div className="text-xs text-muted-foreground mt-1 ml-9">{s.rationale}</div>
                 )}
@@ -911,7 +1002,7 @@ function TestDetail() {
                   {(r.steps || []).map((s: any, i: number) => (
                     <div
                       key={i}
-                      title={`${s.action || s.name} ${s.target || ""}${s.status === "healed" ? ` (healed from ${s.healed_from})` : ""}`}
+                      title={`${s.action || s.name} ${s.target || ""}${s.status === "healed" ? ` (healed from ${s.healed_from})` : ""}${s.status === "skipped" && s.skipped_reason ? ` (skipped — ${s.skipped_reason})` : ""}`}
                       className={`h-1.5 flex-1 min-w-[8px] rounded-full ${s.status === "passed" ? "bg-success" : s.status === "healed" ? "bg-amber-500" : s.status === "failed" ? "bg-destructive" : s.status === "skipped" ? "bg-muted-foreground/30" : "bg-muted"}`}
                     />
                   ))}
