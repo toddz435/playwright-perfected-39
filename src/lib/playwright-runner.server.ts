@@ -122,7 +122,6 @@ type LoopFrame = {
   condition?: StepCondition;
   iter: number;
   startedAt: number;
-  capped?: boolean;
 };
 
 export type StepStatus = "passed" | "failed" | "skipped" | "healed";
@@ -387,8 +386,12 @@ export async function runBrowserSteps(
         if (!frame || frame.endIndex !== i) continue;
         const elapsed = Date.now() - frame.startedAt;
         let again = false;
-        if (frame.iter >= MAX_LOOP_ITERATIONS || elapsed > MAX_LOOP_MS) {
-          // Hard safety cap hit — stop looping and surface it (never an infinite loop).
+        if (frame.mode === "times") {
+          // `count` is clamped to MAX_LOOP_ITERATIONS at entry, so a times-loop always
+          // completes naturally — no safety-cap notice for finishing its intended count.
+          again = frame.iter < frame.count;
+        } else if (frame.iter >= MAX_LOOP_ITERATIONS || elapsed > MAX_LOOP_MS) {
+          // A `while` loop hit the hard safety cap — stop and surface it (never infinite).
           rec({
             idx: i,
             status: "skipped",
@@ -397,10 +400,8 @@ export async function runBrowserSteps(
               elapsed > MAX_LOOP_MS ? `, ${Math.round(elapsed / 1000)}s` : ""
             })`,
           });
-        } else if (frame.mode === "while") {
-          again = frame.condition ? await evalCondition(page, frame.condition) : false;
         } else {
-          again = frame.iter < frame.count;
+          again = frame.condition ? await evalCondition(page, frame.condition) : false;
         }
         if (again) {
           frame.iter++;

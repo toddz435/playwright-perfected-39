@@ -106,7 +106,10 @@ async function runVisualDiffs(
       // Best-effort: persist actual/diff images for the viewer. A failure here records
       // capture_error but must not change the verdict already set above.
       try {
-        const base = `${ownerId}/${testId}/captures/${captureId}-${step.idx}`;
+        // Include the loop iteration (when present) so a screenshot inside a `repeat` block
+        // doesn't overwrite earlier iterations' captures at the same path.
+        const iterSuffix = step.iteration ? `-i${step.iteration}` : "";
+        const base = `${ownerId}/${testId}/captures/${captureId}-${step.idx}${iterSuffix}`;
         await bucket.upload(`${base}-actual.png`, pngBlob(actual), {
           contentType: "image/png",
           upsert: true,

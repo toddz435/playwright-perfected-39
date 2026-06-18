@@ -967,8 +967,13 @@ function TestDetail() {
                               <Input
                                 type="number"
                                 min="1"
-                                value={s.loop?.count ?? 3}
-                                onChange={(e) => patchLoop(i, { count: Number(e.target.value) })}
+                                max="100"
+                                value={s.loop?.count ?? ""}
+                                onChange={(e) =>
+                                  patchLoop(i, {
+                                    count: e.target.value === "" ? undefined : Number(e.target.value),
+                                  })
+                                }
                                 className="bg-input/50 text-xs font-mono w-20"
                               />
                               <span className="text-[11px] text-muted-foreground">times</span>
