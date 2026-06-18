@@ -7,6 +7,12 @@
 // Worker build never tries to pull Playwright in.
 
 import { type Locator, locatorLabel } from "@/lib/locator";
+import {
+  type StepCondition,
+  conditionLabel,
+  conditionSrc,
+  URL_CONDITION_KINDS,
+} from "@/lib/conditions";
 
 export type Step = {
   action: string;
@@ -20,6 +26,9 @@ export type Step = {
   // Stable id for a `screenshot` step — keys its visual-regression baseline so the
   // baseline survives reordering/inserting steps. Assigned in the step editor.
   sid?: string;
+  // Optional guard: the step runs only if this condition holds (else it's skipped). Used
+  // for optional interactions like dismissing a cookie banner that may not appear.
+  condition?: StepCondition;
 };
 
 // Resolves a locator (structured, or a legacy CSS/native-engine string) to a Playwright
@@ -47,6 +56,47 @@ export function resolveLocator(page: any, src: Locator | string): any {
   }
 }
 
+// Evaluates a step's condition guard against the live page. Returns true → run the step,
+// false → skip it. Quick, best-effort: element checks use a short settle window and any
+// thrown error resolves to "not met" (skip) so a flaky guard never crashes the run.
+const CONDITION_SETTLE_MS = 2000;
+async function evalCondition(page: any, cond: StepCondition): Promise<boolean> {
+  try {
+    if (URL_CONDITION_KINDS.has(cond.kind)) {
+      // url_contains — poll briefly so a just-triggered navigation can settle.
+      const needle = String(cond.target ?? "");
+      const deadline = Date.now() + CONDITION_SETTLE_MS;
+      while (!page.url().includes(needle) && Date.now() < deadline) {
+        await page.waitForTimeout(150);
+      }
+      return page.url().includes(needle);
+    }
+    const src = conditionSrc(cond);
+    if (src == null || (typeof src === "string" && src.trim() === "")) return false;
+    // Map each element kind to a Playwright waitFor state so all four get a uniform settle
+    // window (no racy single-shot snapshots). attached/detached cover exists/not_exists;
+    // hidden also resolves immediately for a detached element ("act once it's gone").
+    const state =
+      cond.kind === "visible"
+        ? "visible"
+        : cond.kind === "hidden"
+          ? "hidden"
+          : cond.kind === "exists"
+            ? "attached"
+            : cond.kind === "not_exists"
+              ? "detached"
+              : null;
+    if (!state) return false;
+    return await resolveLocator(page, src)
+      .first()
+      .waitFor({ state, timeout: CONDITION_SETTLE_MS })
+      .then(() => true)
+      .catch(() => false);
+  } catch {
+    return false; // never let a guard break the run — treat as "not met" and skip
+  }
+}
+
 export type StepStatus = "passed" | "failed" | "skipped" | "healed";
 
 export type StepResult = {
@@ -57,6 +107,8 @@ export type StepResult = {
   value?: string;
   duration_ms?: number;
   error?: string;
+  // Why a step was skipped (e.g. its condition guard was not met).
+  skipped_reason?: string;
   // Present when the step's locator was auto-healed before it passed:
   healed_from?: string;
   healed_to?: string;
@@ -217,6 +269,22 @@ export async function runBrowserSteps(
           value: s.value,
         });
         continue;
+      }
+
+      // Condition guard: if present and not met, skip this step (never fails the run).
+      if (s.condition) {
+        const met = await evalCondition(page, s.condition);
+        if (!met) {
+          results.push({
+            idx: i,
+            status: "skipped",
+            action: s.action,
+            target: s.locator ? locatorLabel(s.locator) : s.target,
+            value: s.value,
+            skipped_reason: conditionLabel(s.condition),
+          });
+          continue;
+        }
       }
 
       const sStart = Date.now();
