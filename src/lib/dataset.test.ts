@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseDelimited, normalizeColumn } from "./dataset";
+import {
+  parseDelimited,
+  normalizeColumn,
+  uniquifyColumns,
+  suggestColumnForStep,
+} from "./dataset";
 
 describe("normalizeColumn", () => {
   it("makes names variable-safe ({{col}})", () => {
@@ -8,6 +13,39 @@ describe("normalizeColumn", () => {
     expect(normalizeColumn("  spaced  ", 0)).toBe("spaced");
     expect(normalizeColumn("a/b@c", 0)).toBe("a_b_c");
     expect(normalizeColumn("", 2)).toBe("col3");
+  });
+});
+
+describe("uniquifyColumns", () => {
+  it("appends _2, _3 to repeats, preserving order", () => {
+    expect(uniquifyColumns(["a", "a", "b", "a"])).toEqual(["a", "a_2", "b", "a_3"]);
+  });
+  it("loops the suffix past a literal collision", () => {
+    expect(uniquifyColumns(["a", "a", "a_2"])).toEqual(["a", "a_2", "a_2_2"]);
+  });
+  it("passes through already-unique names", () => {
+    expect(uniquifyColumns(["x", "y", "z"])).toEqual(["x", "y", "z"]);
+  });
+});
+
+describe("suggestColumnForStep", () => {
+  it("uses the role accessible name", () => {
+    expect(suggestColumnForStep({ action: "fill", locator: { by: "role", role: "textbox", name: "Email" } }, 0)).toBe("Email");
+  });
+  it("uses label / placeholder / testid values", () => {
+    expect(suggestColumnForStep({ action: "fill", locator: { by: "label", value: "Password" } }, 0)).toBe("Password");
+    expect(suggestColumnForStep({ action: "fill", locator: { by: "placeholder", value: "Search…" } }, 0)).toBe("Search");
+    expect(suggestColumnForStep({ action: "fill", locator: { by: "testid", value: "qty-input" } }, 0)).toBe("qty-input");
+  });
+  it("normalizes the hint to a variable-safe name", () => {
+    expect(suggestColumnForStep({ action: "fill", locator: { by: "role", role: "textbox", name: "First Name" } }, 0)).toBe("First_Name");
+  });
+  it("suggests 'url' for navigations with no usable locator", () => {
+    expect(suggestColumnForStep({ action: "goto", target: "https://mui.com" }, 0)).toBe("url");
+    expect(suggestColumnForStep({ action: "expect_url_contains", target: "/checkout" }, 0)).toBe("url");
+  });
+  it("falls back to a positional col<n> when there's no hint", () => {
+    expect(suggestColumnForStep({ action: "fill" }, 2)).toBe("col3");
   });
 });
 
