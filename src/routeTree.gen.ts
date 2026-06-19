@@ -25,6 +25,7 @@ import { Route as ApiPublicRunDueSchedulesRouteImport } from './routes/api/publi
 import { Route as ApiProtectedUpdateBaselineRouteImport } from './routes/api/protected/update-baseline'
 import { Route as ApiProtectedSeedDemoRouteImport } from './routes/api/protected/seed-demo'
 import { Route as ApiProtectedScreenshotUrlRouteImport } from './routes/api/protected/screenshot-url'
+import { Route as ApiProtectedSaveVariablesRouteImport } from './routes/api/protected/save-variables'
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
 import { Route as ApiProtectedRecordCodegenRouteImport } from './routes/api/protected/record-codegen'
 import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protected/harden-test'
@@ -119,6 +120,12 @@ const ApiProtectedScreenshotUrlRoute =
     path: '/api/protected/screenshot-url',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedSaveVariablesRoute =
+  ApiProtectedSaveVariablesRouteImport.update({
+    id: '/api/protected/save-variables',
+    path: '/api/protected/save-variables',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiProtectedRunTestRoute = ApiProtectedRunTestRouteImport.update({
   id: '/api/protected/run-test',
   path: '/api/protected/run-test',
@@ -206,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
+  '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
   '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
   '/api/protected/update-baseline': typeof ApiProtectedUpdateBaselineRoute
@@ -234,6 +242,7 @@ export interface FileRoutesByTo {
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
+  '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
   '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
   '/api/protected/update-baseline': typeof ApiProtectedUpdateBaselineRoute
@@ -264,6 +273,7 @@ export interface FileRoutesById {
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
+  '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
   '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
   '/api/protected/update-baseline': typeof ApiProtectedUpdateBaselineRoute
@@ -294,6 +304,7 @@ export interface FileRouteTypes {
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
     | '/api/protected/run-test'
+    | '/api/protected/save-variables'
     | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
     | '/api/protected/update-baseline'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
     | '/api/protected/run-test'
+    | '/api/protected/save-variables'
     | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
     | '/api/protected/update-baseline'
@@ -351,6 +363,7 @@ export interface FileRouteTypes {
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
     | '/api/protected/run-test'
+    | '/api/protected/save-variables'
     | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
     | '/api/protected/update-baseline'
@@ -374,6 +387,7 @@ export interface RootRouteChildren {
   ApiProtectedHardenTestRoute: typeof ApiProtectedHardenTestRoute
   ApiProtectedRecordCodegenRoute: typeof ApiProtectedRecordCodegenRoute
   ApiProtectedRunTestRoute: typeof ApiProtectedRunTestRoute
+  ApiProtectedSaveVariablesRoute: typeof ApiProtectedSaveVariablesRoute
   ApiProtectedScreenshotUrlRoute: typeof ApiProtectedScreenshotUrlRoute
   ApiProtectedSeedDemoRoute: typeof ApiProtectedSeedDemoRoute
   ApiProtectedUpdateBaselineRoute: typeof ApiProtectedUpdateBaselineRoute
@@ -492,6 +506,13 @@ declare module '@tanstack/react-router' {
       path: '/api/protected/screenshot-url'
       fullPath: '/api/protected/screenshot-url'
       preLoaderRoute: typeof ApiProtectedScreenshotUrlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/save-variables': {
+      id: '/api/protected/save-variables'
+      path: '/api/protected/save-variables'
+      fullPath: '/api/protected/save-variables'
+      preLoaderRoute: typeof ApiProtectedSaveVariablesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/protected/run-test': {
@@ -615,6 +636,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedHardenTestRoute: ApiProtectedHardenTestRoute,
   ApiProtectedRecordCodegenRoute: ApiProtectedRecordCodegenRoute,
   ApiProtectedRunTestRoute: ApiProtectedRunTestRoute,
+  ApiProtectedSaveVariablesRoute: ApiProtectedSaveVariablesRoute,
   ApiProtectedScreenshotUrlRoute: ApiProtectedScreenshotUrlRoute,
   ApiProtectedSeedDemoRoute: ApiProtectedSeedDemoRoute,
   ApiProtectedUpdateBaselineRoute: ApiProtectedUpdateBaselineRoute,

@@ -5,7 +5,8 @@
 import { runBrowserSteps } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
-import { interpolate, specVars, secretValues, maskSecrets } from "@/lib/vars";
+import { interpolate, specVars, maskSecrets } from "@/lib/vars";
+import { decryptSecret } from "@/lib/secrets.server";
 import { compareVisual, selectExpiredCaptures } from "@/lib/visual.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -202,8 +203,17 @@ export async function executeTest(
 
   // Substitute {{variables}} into a working copy for execution. The ORIGINAL spec is kept
   // for self-stabilization persistence so {{vars}} stay in the saved test.
+  // Secret values are encrypted at rest — decrypt them (server-side) before interpolation;
+  // non-secret/legacy-plaintext values pass through decryptSecret unchanged.
   const vars = specVars(test.spec);
-  const secrets = secretValues(test.spec);
+  const secretNames: string[] = Array.isArray(test.spec?.secrets) ? test.spec.secrets : [];
+  for (const n of secretNames) {
+    if (typeof vars[n] === "string") vars[n] = decryptSecret(vars[n]);
+  }
+  // Derive the concrete secret values from the DECRYPTED vars (for run-record masking).
+  const secrets = secretNames
+    .map((n) => vars[n])
+    .filter((v): v is string => typeof v === "string" && v.length > 0);
 
   if (test.type === "api") {
     const requests = interpolate((test.spec?.requests || []) as any[], vars);
