@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, json } from "@/lib/server-auth.server";
 import { assertPublicUrl } from "@/lib/ssrf.server";
+import { acquireSlot, ConcurrencyError, RECORDER_LIMITS } from "@/lib/concurrency.server";
 import { spawn } from "node:child_process";
 import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/api/protected/record-codegen")({
     handlers: {
       POST: async ({ request }) => {
         try {
-          await requireUser(request);
+          const { userId } = await requireUser(request);
           const { url } = await request.json();
           if (!url || typeof url !== "string") {
             return json({ error: "A http(s) URL is required" }, { status: 400 });
@@ -40,6 +41,9 @@ export const Route = createFileRoute("/api/protected/record-codegen")({
           } catch (e: any) {
             return json({ error: e?.message || "URL not allowed" }, { status: 400 });
           }
+          // Cap concurrent recordings (headed browser, up to 15 min) per user + globally.
+          const release = acquireSlot("recording", userId, RECORDER_LIMITS);
+          try {
 
           const outFile = join(
             tmpdir(),
@@ -100,7 +104,11 @@ export const Route = createFileRoute("/api/protected/record-codegen")({
               action();
             }
 
-            request.signal?.addEventListener?.("abort", onAbort);
+            // If the client already disconnected (e.g. during the pre-flight awaits), fire now —
+            // addEventListener won't replay an abort that already happened, which would otherwise
+            // pin the recording slot + headed browser until the 15-min timeout.
+            if (request.signal?.aborted) onAbort();
+            else request.signal?.addEventListener?.("abort", onAbort);
 
             child.on("error", (e) =>
               end(() => {
@@ -127,9 +135,13 @@ export const Route = createFileRoute("/api/protected/record-codegen")({
             });
           });
 
-          return json({ script });
+            return json({ script });
+          } finally {
+            release(); // free the recording slot on success, error, timeout, or disconnect
+          }
         } catch (e: any) {
           if (e instanceof Response) return e;
+          if (e instanceof ConcurrencyError) return json({ error: e.message }, { status: 429 });
           console.error(e);
           return json({ error: e?.message || "Failed" }, { status: 500 });
         }
