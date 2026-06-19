@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { acquireSlot, ConcurrencyError } from "./concurrency.server";
+import { acquireSlot, ConcurrencyError, mapPool } from "./concurrency.server";
 
 describe("acquireSlot", () => {
   const L = { perUser: 2, global: 3 };
@@ -51,5 +51,32 @@ describe("acquireSlot", () => {
     r1();
     r2();
     r3();
+  });
+});
+
+describe("mapPool", () => {
+  it("returns results in input order regardless of completion timing", async () => {
+    const out = await mapPool([10, 5, 1], 3, async (ms, i) => {
+      await new Promise((r) => setTimeout(r, ms));
+      return i; // index → confirms order
+    });
+    expect(out).toEqual([0, 1, 2]);
+  });
+
+  it("never exceeds the concurrency limit in flight", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    await mapPool(Array.from({ length: 10 }, (_, i) => i), 3, async () => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+    });
+    expect(peak).toBeLessThanOrEqual(3);
+  });
+
+  it("handles empty input and concurrency >= length", async () => {
+    expect(await mapPool([], 4, async () => 1)).toEqual([]);
+    expect(await mapPool([1, 2], 9, async (x) => x * 2)).toEqual([2, 4]);
   });
 });
