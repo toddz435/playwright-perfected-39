@@ -104,7 +104,11 @@ export const Route = createFileRoute("/api/protected/record-codegen")({
               action();
             }
 
-            request.signal?.addEventListener?.("abort", onAbort);
+            // If the client already disconnected (e.g. during the pre-flight awaits), fire now —
+            // addEventListener won't replay an abort that already happened, which would otherwise
+            // pin the recording slot + headed browser until the 15-min timeout.
+            if (request.signal?.aborted) onAbort();
+            else request.signal?.addEventListener?.("abort", onAbort);
 
             child.on("error", (e) =>
               end(() => {

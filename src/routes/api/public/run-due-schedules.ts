@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isDue } from "@/lib/cron";
 import { executeTest } from "@/lib/test-runner.server";
+import { acquireSlot, RUN_LIMITS } from "@/lib/concurrency.server";
 
 export const Route = createFileRoute("/api/public/run-due-schedules")({
   server: {
@@ -32,6 +33,16 @@ export const Route = createFileRoute("/api/public/run-due-schedules")({
               .eq("id", sched.test_id)
               .single();
             if (!test) continue;
+            // Respect the same global/per-user run cap as interactive runs so scheduled load
+            // can't exhaust the runner. If at capacity, skip this cycle WITHOUT advancing
+            // last_run_at, so the schedule retries on the next poll rather than piling on.
+            let release: () => void;
+            try {
+              release = acquireSlot("run", sched.owner_id, RUN_LIMITS);
+            } catch {
+              results.push({ schedule: sched.id, skipped: "runner at capacity" });
+              continue;
+            }
             try {
               // Same engine as interactive runs (real Playwright, heal, self-stabilize).
               const { status } = await executeTest(supabaseAdmin, test, sched.owner_id, {
@@ -41,8 +52,9 @@ export const Route = createFileRoute("/api/public/run-due-schedules")({
             } catch (e: any) {
               results.push({ schedule: sched.id, error: e?.message });
             } finally {
-              // Always advance last_run_at — even if the run errored — so a failing
-              // schedule doesn't re-fire every poll (the dedupe window keys on this).
+              release();
+              // Advance last_run_at when we actually ran (success or error) — even if the run
+              // errored — so a failing schedule doesn't re-fire every poll (dedupe keys on this).
               await supabaseAdmin
                 .from("schedules")
                 .update({ last_run_at: now.toISOString() })
