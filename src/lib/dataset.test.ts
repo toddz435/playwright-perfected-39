@@ -38,6 +38,12 @@ describe("parseDelimited", () => {
     expect(d.rows[0]).toEqual({ First_Name: "A", First_Name_2: "B" });
   });
 
+  it("keeps de-duped names unique even when a suffix collides with a literal", () => {
+    const d = parseDelimited("a,a,a_2\n1,2,3");
+    expect(new Set(d.columns).size).toBe(3); // all unique
+    expect(d.columns).toEqual(["a", "a_2", "a_2_2"]);
+  });
+
   it("drops fully-blank rows and trims cells", () => {
     const d = parseDelimited("x\n 1 \n\n2");
     expect(d.rows).toEqual([{ x: "1" }, { x: "2" }]);

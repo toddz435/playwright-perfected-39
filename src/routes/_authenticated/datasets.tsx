@@ -30,6 +30,34 @@ type Dataset = {
 
 const blank = (): Dataset => ({ name: "", source: "spreadsheet", columns: [], rows: [] });
 
+// Column header with a LOCAL draft so typing is free; the rename only commits on blur (avoids
+// renaming-per-keystroke, which would churn the grid and lose focus).
+function ColumnHeader({
+  name,
+  onRename,
+  onRemove,
+}: {
+  name: string;
+  onRename: (oldName: string, val: string) => void;
+  onRemove: () => void;
+}) {
+  const [draft, setDraft] = useState(name);
+  useEffect(() => setDraft(name), [name]); // resync if the committed name changes (or a rename was rejected)
+  return (
+    <div className="flex items-center gap-1">
+      <Input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => onRename(name, draft)}
+        className="bg-input/50 h-7 text-xs w-32"
+      />
+      <button onClick={onRemove} title="Remove column" className="text-destructive hover:opacity-70">
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
 // `datasets` isn't in the generated Supabase types yet (Lovable regenerates them after the
 // migration applies), so query it through a loosely-typed handle until then.
 const db = supabase as any;
@@ -49,8 +77,12 @@ function Datasets() {
       .select("*")
       .order("created_at", { ascending: false });
     if (error) {
-      // Table likely not created yet (migration not applied) — degrade gracefully.
-      setNotSetUp(true);
+      // Only the "table doesn't exist" error means the migration isn't applied; anything else
+      // (transient/network/auth) is a real error, not a missing schema.
+      const missingTable =
+        (error as any).code === "42P01" || /does not exist|relation/i.test(error.message || "");
+      if (missingTable) setNotSetUp(true);
+      else toast.error(error.message || "Failed to load datasets");
       setLoading(false);
       return;
     }
@@ -91,18 +123,27 @@ function Datasets() {
           }
         : e,
     );
-  const renameColumn = (oldName: string, raw: string) =>
-    setEditing((e) => {
-      if (!e) return e;
-      const idx = e.columns.indexOf(oldName);
-      const name = normalizeColumn(raw, idx);
-      if (name === oldName || e.columns.includes(name)) return { ...e }; // keep old on clash
-      return {
-        ...e,
-        columns: e.columns.map((c) => (c === oldName ? name : c)),
-        rows: e.rows.map(({ [oldName]: v, ...rest }) => ({ ...rest, [name]: v ?? "" })),
-      };
-    });
+  // Called on blur (not per keystroke) with the finished draft. Validates against current state.
+  const renameColumn = (oldName: string, raw: string) => {
+    if (!editing) return;
+    const idx = editing.columns.indexOf(oldName);
+    if (idx < 0) return;
+    const name = normalizeColumn(raw, idx);
+    if (name === oldName) return; // unchanged
+    if (editing.columns.includes(name)) {
+      toast.error(`A column named "${name}" already exists.`);
+      return; // ColumnHeader resets its draft to the kept name
+    }
+    setEditing((e) =>
+      e
+        ? {
+            ...e,
+            columns: e.columns.map((c) => (c === oldName ? name : c)),
+            rows: e.rows.map(({ [oldName]: v, ...rest }) => ({ ...rest, [name]: v ?? "" })),
+          }
+        : e,
+    );
+  };
 
   const applyPaste = () => {
     const parsed = parseDelimited(paste);
@@ -122,6 +163,10 @@ function Datasets() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    if (!user) {
+      setSaving(false);
+      return toast.error("Your session expired — please sign in again.");
+    }
     const payload = {
       name,
       source: editing.source,
@@ -235,22 +280,13 @@ function Datasets() {
                 <thead>
                   <tr>
                     <th className="w-8" />
-                    {editing.columns.map((c) => (
-                      <th key={c} className="p-1">
-                        <div className="flex items-center gap-1">
-                          <Input
-                            value={c}
-                            onChange={(e) => renameColumn(c, e.target.value)}
-                            className="bg-input/50 h-7 text-xs w-32"
-                          />
-                          <button
-                            onClick={() => removeColumn(c)}
-                            title="Remove column"
-                            className="text-destructive hover:opacity-70"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
+                    {editing.columns.map((c, ci) => (
+                      <th key={ci} className="p-1">
+                        <ColumnHeader
+                          name={c}
+                          onRename={renameColumn}
+                          onRemove={() => removeColumn(c)}
+                        />
                       </th>
                     ))}
                   </tr>
@@ -267,8 +303,8 @@ function Datasets() {
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </td>
-                      {editing.columns.map((c) => (
-                        <td key={c} className="p-0.5">
+                      {editing.columns.map((c, ci) => (
+                        <td key={ci} className="p-0.5">
                           <Input
                             value={row[c] ?? ""}
                             onChange={(e) => setCell(i, c, e.target.value)}

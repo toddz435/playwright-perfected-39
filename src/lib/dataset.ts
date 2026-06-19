@@ -59,13 +59,15 @@ export function parseDelimited(text: string): DatasetData {
   const records = parseRecords(t, delim);
   if (!records.length) return { columns: [], rows: [] };
 
-  // Header → unique, normalized column names.
-  const seen = new Map<string, number>();
+  // Header → unique, normalized column names. Loop the suffix until truly unique so an
+  // auto-suffix (a_2) can't collide with a literal header that's also "a_2".
+  const used = new Set<string>();
   const columns = records[0].map((c, i) => {
-    let name = normalizeColumn(c, i);
-    const n = seen.get(name) ?? 0;
-    seen.set(name, n + 1);
-    if (n > 0) name = `${name}_${n + 1}`;
+    const base = normalizeColumn(c, i);
+    let name = base;
+    let n = 2;
+    while (used.has(name)) name = `${base}_${n++}`;
+    used.add(name);
     return name;
   });
 
