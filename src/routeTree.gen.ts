@@ -32,6 +32,7 @@ import { Route as ApiProtectedRunTestsRouteImport } from './routes/api/protected
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
 import { Route as ApiProtectedRunDatasetRouteImport } from './routes/api/protected/run-dataset'
 import { Route as ApiProtectedRecordCodegenRouteImport } from './routes/api/protected/record-codegen'
+import { Route as ApiProtectedImportDatasetUrlRouteImport } from './routes/api/protected/import-dataset-url'
 import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protected/harden-test'
 import { Route as ApiProtectedHardenProjectRouteImport } from './routes/api/protected/harden-project'
 import { Route as ApiProtectedAiHealSelectorRouteImport } from './routes/api/protected/ai-heal-selector'
@@ -161,6 +162,12 @@ const ApiProtectedRecordCodegenRoute =
     path: '/api/protected/record-codegen',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedImportDatasetUrlRoute =
+  ApiProtectedImportDatasetUrlRouteImport.update({
+    id: '/api/protected/import-dataset-url',
+    path: '/api/protected/import-dataset-url',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiProtectedHardenTestRoute = ApiProtectedHardenTestRouteImport.update({
   id: '/api/protected/harden-test',
   path: '/api/protected/harden-test',
@@ -237,6 +244,7 @@ export interface FileRoutesByFullPath {
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
+  '/api/protected/import-dataset-url': typeof ApiProtectedImportDatasetUrlRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
@@ -270,6 +278,7 @@ export interface FileRoutesByTo {
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
+  '/api/protected/import-dataset-url': typeof ApiProtectedImportDatasetUrlRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
@@ -305,6 +314,7 @@ export interface FileRoutesById {
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
+  '/api/protected/import-dataset-url': typeof ApiProtectedImportDatasetUrlRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-heal-selector'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
+    | '/api/protected/import-dataset-url'
     | '/api/protected/record-codegen'
     | '/api/protected/run-dataset'
     | '/api/protected/run-test'
@@ -373,6 +384,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-heal-selector'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
+    | '/api/protected/import-dataset-url'
     | '/api/protected/record-codegen'
     | '/api/protected/run-dataset'
     | '/api/protected/run-test'
@@ -407,6 +419,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-heal-selector'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
+    | '/api/protected/import-dataset-url'
     | '/api/protected/record-codegen'
     | '/api/protected/run-dataset'
     | '/api/protected/run-test'
@@ -433,6 +446,7 @@ export interface RootRouteChildren {
   ApiProtectedAiHealSelectorRoute: typeof ApiProtectedAiHealSelectorRoute
   ApiProtectedHardenProjectRoute: typeof ApiProtectedHardenProjectRoute
   ApiProtectedHardenTestRoute: typeof ApiProtectedHardenTestRoute
+  ApiProtectedImportDatasetUrlRoute: typeof ApiProtectedImportDatasetUrlRoute
   ApiProtectedRecordCodegenRoute: typeof ApiProtectedRecordCodegenRoute
   ApiProtectedRunDatasetRoute: typeof ApiProtectedRunDatasetRoute
   ApiProtectedRunTestRoute: typeof ApiProtectedRunTestRoute
@@ -607,6 +621,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedRecordCodegenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/import-dataset-url': {
+      id: '/api/protected/import-dataset-url'
+      path: '/api/protected/import-dataset-url'
+      fullPath: '/api/protected/import-dataset-url'
+      preLoaderRoute: typeof ApiProtectedImportDatasetUrlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/harden-test': {
       id: '/api/protected/harden-test'
       path: '/api/protected/harden-test'
@@ -716,6 +737,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedAiHealSelectorRoute: ApiProtectedAiHealSelectorRoute,
   ApiProtectedHardenProjectRoute: ApiProtectedHardenProjectRoute,
   ApiProtectedHardenTestRoute: ApiProtectedHardenTestRoute,
+  ApiProtectedImportDatasetUrlRoute: ApiProtectedImportDatasetUrlRoute,
   ApiProtectedRecordCodegenRoute: ApiProtectedRecordCodegenRoute,
   ApiProtectedRunDatasetRoute: ApiProtectedRunDatasetRoute,
   ApiProtectedRunTestRoute: ApiProtectedRunTestRoute,

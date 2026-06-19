@@ -12,8 +12,10 @@ import {
   Save,
   X,
   ClipboardPaste,
+  Link2,
 } from "lucide-react";
 import { parseDelimited, normalizeColumn } from "@/lib/dataset";
+import { apiCall } from "@/lib/api-client";
 
 export const Route = createFileRoute("/_authenticated/datasets")({
   head: () => ({ meta: [{ title: "Datasets — Testrify" }] }),
@@ -69,6 +71,9 @@ function Datasets() {
   const [editing, setEditing] = useState<Dataset | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [paste, setPaste] = useState("");
+  const [urlOpen, setUrlOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [fetching, setFetching] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const refresh = async () => {
@@ -152,6 +157,27 @@ function Datasets() {
     setPaste("");
     setPasteOpen(false);
     toast.success(`Parsed ${parsed.columns.length} columns × ${parsed.rows.length} rows`);
+  };
+
+  // Fetch a public CSV URL (e.g. a Google Sheet published-to-web CSV) server-side (SSRF-checked)
+  // and load it into the grid. The server returns parsed {columns, rows}.
+  const importUrl = async () => {
+    const u = url.trim();
+    if (!u) return toast.error("Paste a CSV URL first.");
+    setFetching(true);
+    try {
+      const parsed = await apiCall<{ columns: string[]; rows: Record<string, string>[] }>(
+        "/api/protected/import-dataset-url",
+        { url: u },
+      );
+      patch({ columns: parsed.columns, rows: parsed.rows });
+      setUrl("");
+      setUrlOpen(false);
+      toast.success(`Imported ${parsed.columns.length} columns × ${parsed.rows.length} rows`);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setFetching(false);
   };
 
   const save = async () => {
@@ -245,6 +271,9 @@ function Datasets() {
             <Button size="sm" variant="outline" onClick={() => setPasteOpen((o) => !o)}>
               <ClipboardPaste className="h-3.5 w-3.5 mr-1" /> Paste CSV / spreadsheet
             </Button>
+            <Button size="sm" variant="outline" onClick={() => setUrlOpen((o) => !o)}>
+              <Link2 className="h-3.5 w-3.5 mr-1" /> Import from URL
+            </Button>
             <div className="flex-1" />
             <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
               <X className="h-3.5 w-3.5 mr-1" /> Cancel
@@ -266,6 +295,32 @@ function Datasets() {
               <Button size="sm" variant="outline" onClick={applyPaste}>
                 Parse → grid
               </Button>
+            </div>
+          )}
+
+          {urlOpen && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !fetching && importUrl()}
+                  placeholder="https://docs.google.com/…/pub?output=csv"
+                  className="bg-input/50 flex-1 min-w-[280px] font-mono text-xs"
+                />
+                <Button size="sm" variant="outline" disabled={fetching} onClick={importUrl}>
+                  {fetching ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                  ) : (
+                    <Link2 className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Fetch → grid
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Paste a public CSV link. For Google Sheets: <strong>File → Share → Publish to web → CSV</strong>.
+                The fetch runs server-side and only allows public addresses.
+              </p>
             </div>
           )}
 
