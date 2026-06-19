@@ -38,14 +38,8 @@ export function specVars(spec: any): Vars {
 
 export const SECRET_MASK = "••••••";
 
-// The concrete (non-empty) values of variables marked secret in spec.secrets.
-export function secretValues(spec: any): string[] {
-  const vars = specVars(spec);
-  const names: string[] = Array.isArray(spec?.secrets) ? spec.secrets : [];
-  return names
-    .map((n) => vars[n])
-    .filter((v): v is string => typeof v === "string" && v.length > 0);
-}
+// Note: secret values are encrypted at rest. The DECRYPTED values to mask come from
+// secrets.server.ts `decryptedSecretValues()` (server-only, needs the key).
 
 // Deep-replaces any occurrence of a secret value with the mask, so substituted secrets
 // never end up stored in run records. Uses split/join (no regex escaping needed).

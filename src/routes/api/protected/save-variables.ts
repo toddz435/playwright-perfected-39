@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, json } from "@/lib/server-auth.server";
 import { createClient } from "@supabase/supabase-js";
-import { encryptSecret, isEncrypted, hasSecretsKey } from "@/lib/secrets.server";
+import { encryptSecret, decryptSecret, isEncrypted, hasSecretsKey } from "@/lib/secrets.server";
 
 // Persists a test's variables, encrypting secret values at rest before they touch the DB.
 // Secrets are write-only from the client: it sends new plaintext for changed secrets, and
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/api/protected/save-variables")({
     handlers: {
       POST: async ({ request }) => {
         try {
-          const { userId, token } = await requireUser(request);
+          const { token } = await requireUser(request); // ownership enforced via the RLS client
           const body = await request.json();
           const testId = body?.testId;
           const variables: Record<string, string> = body?.variables ?? {};
@@ -52,7 +52,17 @@ export const Route = createFileRoute("/api/protected/save-variables")({
           const out: Record<string, string> = {};
           for (const [name, value] of Object.entries(variables)) {
             if (!secretSet.has(name)) {
-              out[name] = String(value ?? ""); // non-secret → plaintext
+              const v = String(value ?? "");
+              // A non-secret slot must never carry an encrypted blob (else it'd be stored and
+              // interpolated literally — decrypt only runs for secret names).
+              if (isEncrypted(v))
+                return json({ error: "a non-secret value can't be encrypted" }, { status: 400 });
+              // Just un-secreted and left blank (write-only hid the value): recover it as
+              // plaintext from the stored blob instead of silently wiping it.
+              out[name] =
+                v === "" && isEncrypted(existing[name])
+                  ? decryptSecret(existing[name] as string)
+                  : v;
               continue;
             }
             if (keepSet.has(name)) {

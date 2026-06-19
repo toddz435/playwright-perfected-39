@@ -4,6 +4,7 @@
 // server env only, never shipped to the client. GCM is authenticated, so tampering/wrong-key
 // is detected on decrypt instead of silently returning garbage.
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { specVars } from "@/lib/vars";
 
 const PREFIX = "enc:v1:"; // version tag so the format can evolve
 const ALGO = "aes-256-gcm";
@@ -39,6 +40,23 @@ export function encryptSecret(plaintext: string): string {
   const ct = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return PREFIX + [iv, ct, tag].map((b) => b.toString("base64")).join(":");
+}
+
+// The DECRYPTED plaintext values of a spec's secret variables — for masking them out of run
+// records and anything sent to the LLM. Best-effort: a value that can't be decrypted (missing
+// key / tamper) is skipped rather than throwing, since this only feeds redaction.
+export function decryptedSecretValues(spec: any): string[] {
+  const vars = specVars(spec);
+  const names: string[] = Array.isArray(spec?.secrets) ? spec.secrets : [];
+  return names
+    .map((n) => {
+      try {
+        return decryptSecret(String(vars[n] ?? ""));
+      } catch {
+        return "";
+      }
+    })
+    .filter((v) => v.length > 0);
 }
 
 // Decrypts an encrypted blob. A value that isn't one of our blobs (plaintext / legacy secret)

@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { encryptSecret, decryptSecret, isEncrypted, hasSecretsKey } from "./secrets.server";
+import {
+  encryptSecret,
+  decryptSecret,
+  isEncrypted,
+  hasSecretsKey,
+  decryptedSecretValues,
+} from "./secrets.server";
 
 beforeAll(() => {
   // Deterministic 32-byte key for the test run.
@@ -40,5 +46,16 @@ describe("secrets.server", () => {
 
   it("reports key availability", () => {
     expect(hasSecretsKey()).toBe(true);
+  });
+
+  it("decryptedSecretValues returns plaintext for secret names (incl. legacy plaintext)", () => {
+    const spec = {
+      variables: { url: "https://x", pw: encryptSecret("s3cret"), legacy: "oldplain" },
+      secrets: ["pw", "legacy"],
+    };
+    const vals = decryptedSecretValues(spec);
+    expect(vals).toContain("s3cret"); // decrypted
+    expect(vals).toContain("oldplain"); // legacy plaintext passes through
+    expect(vals).not.toContain("https://x"); // non-secret excluded
   });
 });
