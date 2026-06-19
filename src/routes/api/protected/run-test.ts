@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, json } from "@/lib/server-auth.server";
 import { createClient } from "@supabase/supabase-js";
 import { executeTest } from "@/lib/test-runner.server";
+import { acquireSlot, ConcurrencyError, RUN_LIMITS } from "@/lib/concurrency.server";
 
 export const Route = createFileRoute("/api/protected/run-test")({
   server: {
@@ -26,12 +27,20 @@ export const Route = createFileRoute("/api/protected/run-test")({
             .single();
           if (tErr || !test) return json({ error: "Test not found" }, { status: 404 });
 
-          const { run } = await executeTest(sb, test, userId, {
-            startIdx: Math.max(0, Number(resumeFromStep) || 0),
-          });
-          return json({ run });
+          // Cap concurrent runs per user (and across the runner) so a user can't spawn
+          // unbounded browsers. Throws ConcurrencyError (→ 429) when over the limit.
+          const release = acquireSlot("run", userId, RUN_LIMITS);
+          try {
+            const { run } = await executeTest(sb, test, userId, {
+              startIdx: Math.max(0, Number(resumeFromStep) || 0),
+            });
+            return json({ run });
+          } finally {
+            release();
+          }
         } catch (e: any) {
           if (e instanceof Response) return e;
+          if (e instanceof ConcurrencyError) return json({ error: e.message }, { status: 429 });
           console.error(e);
           return json({ error: e?.message || "Failed" }, { status: 500 });
         }
