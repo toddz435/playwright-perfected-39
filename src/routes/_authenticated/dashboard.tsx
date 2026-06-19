@@ -60,6 +60,7 @@ function Dashboard() {
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [seedBusy, setSeedBusy] = useState(false);
   const [hardenBusy, setHardenBusy] = useState(false);
+  const [runAllBusy, setRunAllBusy] = useState(false);
 
   const seedDemo = async () => {
     setSeedBusy(true);
@@ -89,6 +90,28 @@ function Dashboard() {
       toast.error(e.message);
     }
     setHardenBusy(false);
+  };
+
+  const runAll = async () => {
+    if (!activeProject) return;
+    setRunAllBusy(true);
+    try {
+      const r = await apiCall<any>("/api/protected/run-tests", { projectId: activeProject });
+      const extra = [
+        r.errored ? `${r.errored} errored` : "",
+        r.skipped ? `${r.skipped} skipped` : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      const msg = `${r.passed} passed, ${r.failed} failed${extra ? `, ${extra}` : ""} (of ${r.tests})`;
+      // Anything other than an all-pass is a warning/error, not a green success.
+      if (r.failed > 0 || r.errored > 0 || r.passed === 0) toast.error(msg);
+      else toast.success(msg);
+      loadRuns(activeProject);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setRunAllBusy(false);
   };
 
   const deleteProject = async () => {
@@ -248,6 +271,21 @@ function Dashboard() {
           </p>
         </div>
         <div className="flex gap-2">
+          {activeProject && projectTests.some((t) => t.type === "browser") && (
+            <Button
+              variant="outline"
+              disabled={runAllBusy}
+              onClick={runAll}
+              title="Run every browser test in this project in parallel (bounded by the run concurrency caps)."
+            >
+              {runAllBusy ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-1" />
+              )}
+              Run all
+            </Button>
+          )}
           {activeProject && projectTests.some((t) => t.type === "browser") && (
             <Button
               variant="outline"

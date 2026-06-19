@@ -14,6 +14,30 @@ export type Limits = { perUser: number; global: number };
 export const RECORDER_LIMITS: Limits = { perUser: 1, global: 3 };
 export const RUN_LIMITS: Limits = { perUser: 3, global: 10 };
 
+// Runs `fn` over all items with at most `concurrency` in flight at once, preserving result
+// order. A bounded worker pool: workers pull from a shared cursor until the list is drained.
+// Used to run a batch of tests in parallel without firing them all at once.
+// CONTRACT: `fn` must handle its own errors and not reject — a rejection propagates through
+// Promise.all and abandons the other in-flight/queued items (standard Promise.all semantics).
+export async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  const worker = async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
 const perUser = new Map<string, number>(); // `${bucket}:${userId}` → count
 const perBucket = new Map<string, number>(); // `${bucket}` → count
 
