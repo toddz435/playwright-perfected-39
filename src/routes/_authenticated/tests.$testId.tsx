@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { locatorLabel } from "@/lib/locator";
+import { suggestColumnForStep, uniquifyColumns } from "@/lib/dataset";
 import {
   CONDITION_KINDS,
   URL_CONDITION_KINDS,
@@ -67,6 +68,13 @@ const STEP_ACTIONS = [
 const URL_ACTIONS = new Set(["goto", "expect_url_contains"]);
 // Actions that take a value.
 const VALUE_ACTIONS = new Set(["fill", "press", "expect_text", "expect_value", "expect_count"]);
+// Field/column names that look like they hold a credential. Dataset rows are stored unencrypted,
+// so the wizard flags these so the user can use a write-only test secret instead.
+const SENSITIVE_RE = /pass|secret|token|api.?key|otp|cvv|ssn|credit|card|\bpin\b/i;
+// A name usable as a {{variable}} / dataset column: interpolation-safe charset, no prototype-
+// pollution keys. Shared by the variables editor and the data-drive wizard.
+const RESERVED_VAR_NAMES = new Set(["__proto__", "constructor", "prototype"]);
+const isValidVarName = (n: string) => /^[\w.-]+$/.test(n) && !RESERVED_VAR_NAMES.has(n);
 
 function TestDetail() {
   const { testId } = Route.useParams();
@@ -98,6 +106,24 @@ function TestDetail() {
   const [datasets, setDatasets] = useState<any[]>([]);
   const [datasetRunBusy, setDatasetRunBusy] = useState(false);
   const [datasetResults, setDatasetResults] = useState<any | null>(null);
+  // DDT parameterize-from-recording wizard: turn recorded literal values into {{columns}},
+  // seed a dataset with them as row 1, and attach it. `paramRows` is one entry per value-bearing
+  // step (idx into the spec's steps), each with an editable column name + include toggle.
+  const [paramOpen, setParamOpen] = useState(false);
+  const [paramRows, setParamRows] = useState<
+    {
+      idx: number;
+      action: string;
+      field: string;
+      literal: string;
+      kind: "value" | "url";
+      column: string;
+      include: boolean;
+      sensitive: boolean;
+    }[]
+  >([]);
+  const [paramName, setParamName] = useState("");
+  const [paramBusy, setParamBusy] = useState(false);
 
   const refresh = async () => {
     const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
@@ -151,11 +177,10 @@ function TestDetail() {
     const variables: Record<string, string> = {};
     const secrets: string[] = [];
     const keep: string[] = []; // secrets left blank → keep the stored (encrypted) value
-    const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
     for (const { name, value, secret, stored } of varRows) {
       const n = name.trim();
       if (!n) continue;
-      if (!/^[\w.-]+$/.test(n) || RESERVED.has(n))
+      if (!isValidVarName(n))
         return toast.error(
           `Invalid variable name "${n}" — use letters, numbers, . _ - (no spaces).`,
         );
@@ -578,6 +603,136 @@ function TestDetail() {
     setDatasetRunBusy(false);
   };
 
+  // DDT: open the parameterize-from-recording wizard. Scans the recorded steps for literal
+  // values (fill/expect values + goto/url targets, skipping ones already bound to {{var}}) and
+  // suggests a {{column}} name for each from the field it targets.
+  const openParameterize = () => {
+    const steps: any[] = test.spec?.steps || [];
+    const candidates = steps
+      .map((s, i) => {
+        if (isBlockMarker(s.action)) return null;
+        if (VALUE_ACTIONS.has(s.action)) {
+          const v = s.value ?? "";
+          if (!v || v.includes("{{")) return null;
+          return {
+            idx: i,
+            action: s.action,
+            kind: "value" as const,
+            literal: v,
+            field: s.locator ? locatorLabel(s.locator) : (s.target ?? s.action),
+            step: s,
+          };
+        }
+        if (URL_ACTIONS.has(s.action)) {
+          const v = s.target ?? "";
+          if (!v || v.includes("{{")) return null;
+          return { idx: i, action: s.action, kind: "url" as const, literal: v, field: s.action, step: s };
+        }
+        return null;
+      })
+      .filter(Boolean) as any[];
+    if (!candidates.length) {
+      toast.info("No fillable values to parameterize — record some fill or goto steps first.");
+      return;
+    }
+    const names = uniquifyColumns(candidates.map((c, i) => suggestColumnForStep(c.step, i)));
+    setParamRows(
+      candidates.map((c, i) => ({
+        idx: c.idx,
+        action: c.action,
+        field: c.field,
+        literal: c.literal,
+        kind: c.kind,
+        column: names[i],
+        include: true,
+        sensitive: SENSITIVE_RE.test(c.field) || SENSITIVE_RE.test(names[i]),
+      })),
+    );
+    setParamName(`${test.name} data`);
+    setParamOpen(true);
+  };
+
+  const setParamRow = (i: number, patch: Partial<(typeof paramRows)[number]>) =>
+    setParamRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+
+  // DDT: create a dataset seeded with the recorded values (row 1), bind the chosen steps to
+  // {{column}}, and attach the dataset — all in one spec update.
+  const applyParameterize = async () => {
+    const chosen = paramRows.filter((r) => r.include);
+    if (!chosen.length) return toast.error("Select at least one field to parameterize.");
+    for (const r of chosen) {
+      const n = r.column.trim();
+      if (!n || !isValidVarName(n))
+        return toast.error(
+          `Invalid column name "${r.column}" — use letters, numbers, . _ - (no spaces).`,
+        );
+    }
+    const name = paramName.trim();
+    if (!name) return toast.error("Give the dataset a name.");
+    // The wizard captured step indices when it opened; bail if the steps changed underneath us
+    // (e.g. the user edited and saved steps meanwhile) so we never bind the wrong step.
+    const curSteps: any[] = test.spec?.steps || [];
+    for (const r of chosen) {
+      const s = curSteps[r.idx];
+      const current = r.kind === "url" ? s?.target : s?.value;
+      if (!s || current !== r.literal)
+        return toast.error("Steps changed since you opened Data-drive — close it and reopen.");
+    }
+    setParamBusy(true);
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth?.user?.id;
+      if (!uid) {
+        setParamBusy(false);
+        return toast.error("Session expired — sign in again.");
+      }
+      // Unique columns in first-seen order; row 1 seeded with the recorded literal. When two
+      // fields map to the same column (same value used twice), the first occurrence wins.
+      const columns: string[] = [];
+      const row1: Record<string, string> = {};
+      for (const r of chosen) {
+        const col = r.column.trim();
+        if (!columns.includes(col)) {
+          columns.push(col);
+          row1[col] = r.literal;
+        }
+      }
+      // Rewrite only the chosen steps to bind {{column}}; leave every other step untouched.
+      const bind = new Map(chosen.map((r) => [r.idx, { col: r.column.trim(), kind: r.kind }]));
+      const steps = (test.spec?.steps || []).map((s: any, i: number) => {
+        const b = bind.get(i);
+        if (!b) return s;
+        const token = `{{${b.col}}}`;
+        return b.kind === "url" ? { ...s, target: token } : { ...s, value: token };
+      });
+      const { data: ds, error: dsErr } = await (supabase as any)
+        .from("datasets")
+        .insert({
+          owner_id: uid,
+          name,
+          source: "spreadsheet",
+          columns,
+          rows: [row1],
+          project_id: test.project_id ?? null,
+        })
+        .select("id")
+        .single();
+      if (dsErr || !ds) throw new Error(dsErr?.message || "Could not create dataset.");
+      const newSpec = { ...test.spec, steps, datasetId: ds.id };
+      const { error: tErr } = await supabase.from("tests").update({ spec: newSpec }).eq("id", testId);
+      if (tErr) throw new Error(tErr.message);
+      toast.success(
+        `Created "${name}" (${columns.length} column${columns.length === 1 ? "" : "s"}) and bound ${chosen.length} field${chosen.length === 1 ? "" : "s"}.`,
+      );
+      setParamOpen(false);
+      setDatasetResults(null);
+      await refresh();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setParamBusy(false);
+  };
+
   if (loading)
     return (
       <div className="p-12 flex items-center justify-center">
@@ -639,6 +794,16 @@ function TestDetail() {
                   ))}
                 </select>
               </label>
+            )}
+            {test.type === "browser" && (
+              <Button
+                variant="outline"
+                disabled={paramOpen || running}
+                onClick={openParameterize}
+                title="Turn recorded values into {{columns}}: creates a dataset seeded with these values, binds the chosen fields, and attaches it."
+              >
+                <Braces className="h-4 w-4 mr-1" /> Data-drive
+              </Button>
             )}
             {test.type === "browser" && datasets.length > 0 && (
               <label
@@ -730,6 +895,106 @@ function TestDetail() {
           </div>
         </div>
       </div>
+
+      {/* DDT: parameterize-from-recording wizard */}
+      {paramOpen && (
+        <section className="glass rounded-2xl p-6 shadow-card border border-primary/20">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-semibold flex items-center gap-2">
+                <Braces className="h-4 w-4 text-primary-glow" /> Data-drive from recording
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+                Turn recorded values into <code className="text-primary-glow">{"{{columns}}"}</code>.
+                We&apos;ll create a dataset seeded with these values as row 1, bind each chosen
+                field, and attach it — then fill the sheet and run once per row.
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => setParamOpen(false)} title="Close">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2">
+            <label className="text-sm text-muted-foreground">Dataset name</label>
+            <Input
+              value={paramName}
+              onChange={(e) => setParamName(e.target.value)}
+              className="max-w-xs"
+            />
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {paramRows.map((r, i) => (
+              <div
+                key={r.idx}
+                className="flex items-center gap-3 rounded-lg border border-border bg-surface/40 p-3"
+              >
+                <input
+                  type="checkbox"
+                  checked={r.include}
+                  onChange={(e) => setParamRow(i, { include: e.target.checked })}
+                  className="h-4 w-4 accent-primary"
+                />
+                <span className="text-xs text-muted-foreground w-6 text-right">{r.idx + 1}</span>
+                <Badge variant="secondary" className="text-xs shrink-0">
+                  {r.action}
+                </Badge>
+                <span
+                  className="text-xs text-muted-foreground font-mono truncate max-w-[180px] shrink-0"
+                  title={r.field}
+                >
+                  {r.field}
+                </span>
+                <span className="text-muted-foreground shrink-0">→</span>
+                <div className="flex items-center gap-0.5 font-mono text-xs shrink-0">
+                  <span className="text-muted-foreground">{"{{"}</span>
+                  <Input
+                    value={r.column}
+                    onChange={(e) => setParamRow(i, { column: e.target.value })}
+                    disabled={!r.include}
+                    className="h-7 w-36 font-mono text-xs"
+                  />
+                  <span className="text-muted-foreground">{"}}"}</span>
+                </div>
+                {r.sensitive && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs shrink-0 border-amber-500/40 text-amber-500"
+                    title="Looks sensitive. Dataset values are stored unencrypted — for real credentials use a write-only test secret variable instead."
+                  >
+                    sensitive
+                  </Badge>
+                )}
+                <span
+                  className="text-xs text-muted-foreground truncate flex-1 text-right"
+                  title={r.literal}
+                >
+                  = &quot;{r.literal}&quot;
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <Button
+              onClick={applyParameterize}
+              disabled={paramBusy}
+              className="bg-gradient-primary border-0 shadow-glow"
+            >
+              {paramBusy ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Database className="h-4 w-4 mr-1" />
+              )}{" "}
+              Create dataset &amp; bind
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {paramRows.filter((r) => r.include).length} of {paramRows.length} selected
+            </span>
+          </div>
+        </section>
+      )}
 
       {/* Locator hardening report */}
       {hardenReport && (

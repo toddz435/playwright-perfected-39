@@ -1,6 +1,8 @@
 // Data-Driven Testing data model + a parser for pasted/uploaded spreadsheet data. Pure +
 // client-safe. A dataset's columns become the per-row variable names; each row is a
 // {columnName: value} map that drives one test run.
+import { locatorLabel } from "@/lib/locator";
+
 export type DatasetData = { columns: string[]; rows: Record<string, string>[] };
 
 // Column names become {{variable}} names, so normalize to the interpolation-safe charset
@@ -11,6 +13,45 @@ export function normalizeColumn(name: string, index: number): string {
     .replace(/[^\w.-]+/g, "_")
     .replace(/^_+|_+$/g, "");
   return cleaned || `col${index + 1}`;
+}
+
+// De-dups a list of column names by appending _2, _3, … to repeats, looping the suffix until
+// truly unique (so an auto-suffix can't collide with another literal name). Preserves order
+// and the first occurrence of each base name. Used by the parameterize-from-recording wizard.
+export function uniquifyColumns(names: string[]): string[] {
+  const used = new Set<string>();
+  return names.map((base) => {
+    let name = base;
+    let n = 2;
+    while (used.has(name)) name = `${base}_${n++}`;
+    used.add(name);
+    return name;
+  });
+}
+
+// A loose shape for a recorded browser step — just the fields the wizard reads. The canonical
+// step type isn't centralized, so keep this structural and tolerant.
+type StepLike = {
+  action?: string;
+  locator?: unknown;
+  target?: string;
+  value?: string;
+};
+
+// Suggests a {{column}} name for a recorded step's value, derived from the field it targets
+// (role name / label / placeholder / testid), falling back to the action ("url" for navigations)
+// or a positional col<n>. Names are normalized to the interpolation-safe charset.
+export function suggestColumnForStep(step: StepLike, index: number): string {
+  const loc = step?.locator as any;
+  let hint = "";
+  if (loc && typeof loc === "object") {
+    if (loc.by === "role" && loc.name) hint = String(loc.name);
+    else if (loc.value && ["label", "placeholder", "testid", "text"].includes(loc.by))
+      hint = String(loc.value);
+    else hint = locatorLabel(loc); // css/xpath → the raw selector, normalized below
+  }
+  if (!hint && (step?.action === "goto" || step?.action === "expect_url_contains")) hint = "url";
+  return normalizeColumn(hint, index);
 }
 
 // Splits delimited text into records, honoring RFC4180 quotes ("a,b", escaped "").
@@ -59,17 +100,9 @@ export function parseDelimited(text: string): DatasetData {
   const records = parseRecords(t, delim);
   if (!records.length) return { columns: [], rows: [] };
 
-  // Header → unique, normalized column names. Loop the suffix until truly unique so an
-  // auto-suffix (a_2) can't collide with a literal header that's also "a_2".
-  const used = new Set<string>();
-  const columns = records[0].map((c, i) => {
-    const base = normalizeColumn(c, i);
-    let name = base;
-    let n = 2;
-    while (used.has(name)) name = `${base}_${n++}`;
-    used.add(name);
-    return name;
-  });
+  // Header → unique, normalized column names (the suffix loops until truly unique so an
+  // auto-suffix (a_2) can't collide with a literal header that's also "a_2").
+  const columns = uniquifyColumns(records[0].map((c, i) => normalizeColumn(c, i)));
 
   const rows: Record<string, string>[] = [];
   for (const rec of records.slice(1)) {
