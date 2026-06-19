@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      datasets: {
+        Row: {
+          columns: string[]
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          project_id: string | null
+          rows: Json
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          columns?: string[]
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          project_id?: string | null
+          rows?: Json
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          columns?: string[]
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          project_id?: string | null
+          rows?: Json
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datasets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
