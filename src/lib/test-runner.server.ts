@@ -2,7 +2,7 @@
 // (api/protected/run-test) and the scheduled route (api/public/run-due-schedules), so
 // their execution, assertions, healing, summary, and self-stabilization can't drift.
 // Runs on the Node server only (Playwright isn't available in the Cloudflare Worker).
-import { runBrowserSteps } from "@/lib/playwright-runner.server";
+import { runBrowserSteps, DEFAULT_RUN_BUDGET_MS } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
 import { interpolate, specVars, maskSecrets } from "@/lib/vars";
@@ -288,10 +288,15 @@ export async function executeTest(
       : undefined;
     // Retry the whole run (fresh browser each attempt) up to `retries` times; keep the first
     // passing attempt, else the last. Self-heal/fallbacks still happen within each attempt.
-    let result = await runBrowserSteps(runSteps, { startIdx, heal });
+    // The time budget is shared ACROSS attempts (a single deadline) so retries can't multiply
+    // wall-clock / hold a run slot for budget × (retries+1).
+    const runDeadline = Date.now() + DEFAULT_RUN_BUDGET_MS;
+    const runOnce = () =>
+      runBrowserSteps(runSteps, { startIdx, heal, maxRunMs: Math.max(0, runDeadline - Date.now()) });
+    let result = await runOnce();
     for (let attempt = 2; result.status === "failed" && attempt <= retries + 1; attempt++) {
       attempts = attempt;
-      result = await runBrowserSteps(runSteps, { startIdx, heal });
+      result = await runOnce();
     }
     stepResults.push(...result.steps);
     if (result.status === "failed") status = "failed";

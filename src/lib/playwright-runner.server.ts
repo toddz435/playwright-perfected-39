@@ -167,12 +167,13 @@ export type RunOptions = {
   stepTimeoutMs?: number;
   gotoTimeoutMs?: number;
   headless?: boolean;
-  // Total wall-clock budget for the whole run; if exceeded the run stops cleanly with a
-  // "time budget" failure instead of hanging. Pairs with the per-step/loop caps.
+  // Wall-clock budget for this run, checked BETWEEN steps; if exceeded the run stops cleanly
+  // with a "time budget" failure. (A single in-flight step is bounded by its own
+  // per-step/goto timeout, not preempted mid-step.) Pairs with the per-step/loop caps.
   maxRunMs?: number;
 };
 
-const DEFAULT_RUN_BUDGET_MS = 5 * 60 * 1000;
+export const DEFAULT_RUN_BUDGET_MS = 5 * 60 * 1000;
 
 // Errors thrown by step executors. Only LocatorError is considered "healable" — a real
 // assertion mismatch (element found, but wrong text/value/count) is a genuine failure.
@@ -332,7 +333,8 @@ export async function runBrowserSteps(
         continue;
       }
 
-      // Run budget: stop cleanly if the whole run has exceeded its time cap (never hang).
+      // Run budget (checked between steps): stop cleanly once the run has exceeded its time
+      // cap. A single in-flight step is bounded by its own per-step/goto timeout, not here.
       if (Date.now() - runStart > maxRunMs) {
         rec({
           idx: i,

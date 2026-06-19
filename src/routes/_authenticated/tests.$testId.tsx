@@ -583,7 +583,7 @@ function TestDetail() {
             {test.type === "browser" && (
               <label
                 className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
-                title="Auto-retry a failed run this many times (fresh browser each attempt). Passes if any attempt passes — resilience against flaky steps."
+                title="Auto-retry a failed run this many times (fresh browser each attempt); passes if any attempt passes. Caution: a retry re-runs the WHOLE test, so side-effecting steps (form submits, purchases) repeat. Total time is capped across attempts."
               >
                 <Repeat className="h-3.5 w-3.5" />
                 Retries
