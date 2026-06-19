@@ -97,10 +97,16 @@ function Dashboard() {
     setRunAllBusy(true);
     try {
       const r = await apiCall<any>("/api/protected/run-tests", { projectId: activeProject });
-      const skipped = r.skipped ? `, ${r.skipped} skipped` : "";
-      toast[r.failed > 0 ? "error" : "success"](
-        `Ran ${r.tests} test${r.tests === 1 ? "" : "s"}: ${r.passed} passed, ${r.failed} failed${skipped}`,
-      );
+      const extra = [
+        r.errored ? `${r.errored} errored` : "",
+        r.skipped ? `${r.skipped} skipped` : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      const msg = `${r.passed} passed, ${r.failed} failed${extra ? `, ${extra}` : ""} (of ${r.tests})`;
+      // Anything other than an all-pass is a warning/error, not a green success.
+      if (r.failed > 0 || r.errored > 0 || r.passed === 0) toast.error(msg);
+      else toast.success(msg);
       loadRuns(activeProject);
     } catch (e: any) {
       toast.error(e.message);

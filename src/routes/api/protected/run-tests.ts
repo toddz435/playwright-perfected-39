@@ -33,31 +33,44 @@ export const Route = createFileRoute("/api/protected/run-tests")({
             return json({ error: "No browser tests in this project" }, { status: 400 });
 
           // Run in parallel, capped at the per-user run limit (also respects the global cap via
-          // acquireSlot). Each slot is released as soon as its run finishes.
+          // acquireSlot). Each slot is released as soon as its run finishes. mapPool's fn must
+          // not throw (it catches its own errors below), else Promise.all would abandon the rest.
+          const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
           const results = await mapPool(tests, RUN_LIMITS.perUser, async (test) => {
-            let release: () => void;
-            try {
-              release = acquireSlot("run", userId, RUN_LIMITS);
-            } catch (e: any) {
-              if (e instanceof ConcurrencyError)
-                return { testId: test.id, name: test.name, skipped: "runner busy" };
-              throw e;
+            // Wait briefly for a free slot (e.g. an interactive run finishing) instead of
+            // immediately skipping, so the batch actually runs every test under contention.
+            const slotDeadline = Date.now() + 30_000;
+            let release: () => void | undefined;
+            while (true) {
+              try {
+                release = acquireSlot("run", userId, RUN_LIMITS);
+                break;
+              } catch (e: any) {
+                if (e instanceof ConcurrencyError && Date.now() < slotDeadline) {
+                  await sleep(400);
+                  continue;
+                }
+                if (e instanceof ConcurrencyError)
+                  return { testId: test.id, name: test.name, skipped: "runner busy" } as const;
+                throw e;
+              }
             }
             try {
               const { status } = await executeTest(sb, test, userId, {});
-              return { testId: test.id, name: test.name, status };
+              return { testId: test.id, name: test.name, status } as const;
             } catch (e: any) {
-              return { testId: test.id, name: test.name, error: e?.message || "Failed" };
+              return { testId: test.id, name: test.name, error: e?.message || "Failed" } as const;
             } finally {
-              release();
+              release!();
             }
           });
 
           return json({
             tests: results.length,
-            passed: results.filter((r) => r.status === "passed").length,
-            failed: results.filter((r) => r.status === "failed").length,
-            skipped: results.filter((r) => "skipped" in r || "error" in r).length,
+            passed: results.filter((r) => "status" in r && r.status === "passed").length,
+            failed: results.filter((r) => "status" in r && r.status === "failed").length,
+            errored: results.filter((r) => "error" in r).length,
+            skipped: results.filter((r) => "skipped" in r).length,
             results,
           });
         } catch (e: any) {

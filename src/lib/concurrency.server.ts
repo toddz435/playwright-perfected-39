@@ -17,6 +17,8 @@ export const RUN_LIMITS: Limits = { perUser: 3, global: 10 };
 // Runs `fn` over all items with at most `concurrency` in flight at once, preserving result
 // order. A bounded worker pool: workers pull from a shared cursor until the list is drained.
 // Used to run a batch of tests in parallel without firing them all at once.
+// CONTRACT: `fn` must handle its own errors and not reject — a rejection propagates through
+// Promise.all and abandons the other in-flight/queued items (standard Promise.all semantics).
 export async function mapPool<T, R>(
   items: T[],
   concurrency: number,
