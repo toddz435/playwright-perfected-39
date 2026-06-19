@@ -30,6 +30,7 @@ import { Route as ApiProtectedScreenshotUrlRouteImport } from './routes/api/prot
 import { Route as ApiProtectedSaveVariablesRouteImport } from './routes/api/protected/save-variables'
 import { Route as ApiProtectedRunTestsRouteImport } from './routes/api/protected/run-tests'
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
+import { Route as ApiProtectedRunDatasetRouteImport } from './routes/api/protected/run-dataset'
 import { Route as ApiProtectedRecordCodegenRouteImport } from './routes/api/protected/record-codegen'
 import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protected/harden-test'
 import { Route as ApiProtectedHardenProjectRouteImport } from './routes/api/protected/harden-project'
@@ -149,6 +150,11 @@ const ApiProtectedRunTestRoute = ApiProtectedRunTestRouteImport.update({
   path: '/api/protected/run-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProtectedRunDatasetRoute = ApiProtectedRunDatasetRouteImport.update({
+  id: '/api/protected/run-dataset',
+  path: '/api/protected/run-dataset',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProtectedRecordCodegenRoute =
   ApiProtectedRecordCodegenRouteImport.update({
     id: '/api/protected/record-codegen',
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
+  '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/run-tests': typeof ApiProtectedRunTestsRoute
   '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
@@ -264,6 +271,7 @@ export interface FileRoutesByTo {
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
+  '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/run-tests': typeof ApiProtectedRunTestsRoute
   '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
@@ -298,6 +306,7 @@ export interface FileRoutesById {
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
+  '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/run-tests': typeof ApiProtectedRunTestsRoute
   '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
@@ -332,6 +341,7 @@ export interface FileRouteTypes {
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
+    | '/api/protected/run-dataset'
     | '/api/protected/run-test'
     | '/api/protected/run-tests'
     | '/api/protected/save-variables'
@@ -364,6 +374,7 @@ export interface FileRouteTypes {
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
+    | '/api/protected/run-dataset'
     | '/api/protected/run-test'
     | '/api/protected/run-tests'
     | '/api/protected/save-variables'
@@ -397,6 +408,7 @@ export interface FileRouteTypes {
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
+    | '/api/protected/run-dataset'
     | '/api/protected/run-test'
     | '/api/protected/run-tests'
     | '/api/protected/save-variables'
@@ -422,6 +434,7 @@ export interface RootRouteChildren {
   ApiProtectedHardenProjectRoute: typeof ApiProtectedHardenProjectRoute
   ApiProtectedHardenTestRoute: typeof ApiProtectedHardenTestRoute
   ApiProtectedRecordCodegenRoute: typeof ApiProtectedRecordCodegenRoute
+  ApiProtectedRunDatasetRoute: typeof ApiProtectedRunDatasetRoute
   ApiProtectedRunTestRoute: typeof ApiProtectedRunTestRoute
   ApiProtectedRunTestsRoute: typeof ApiProtectedRunTestsRoute
   ApiProtectedSaveVariablesRoute: typeof ApiProtectedSaveVariablesRoute
@@ -580,6 +593,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedRunTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/run-dataset': {
+      id: '/api/protected/run-dataset'
+      path: '/api/protected/run-dataset'
+      fullPath: '/api/protected/run-dataset'
+      preLoaderRoute: typeof ApiProtectedRunDatasetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/record-codegen': {
       id: '/api/protected/record-codegen'
       path: '/api/protected/record-codegen'
@@ -697,6 +717,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedHardenProjectRoute: ApiProtectedHardenProjectRoute,
   ApiProtectedHardenTestRoute: ApiProtectedHardenTestRoute,
   ApiProtectedRecordCodegenRoute: ApiProtectedRecordCodegenRoute,
+  ApiProtectedRunDatasetRoute: ApiProtectedRunDatasetRoute,
   ApiProtectedRunTestRoute: ApiProtectedRunTestRoute,
   ApiProtectedRunTestsRoute: ApiProtectedRunTestsRoute,
   ApiProtectedSaveVariablesRoute: ApiProtectedSaveVariablesRoute,
@@ -708,3 +729,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

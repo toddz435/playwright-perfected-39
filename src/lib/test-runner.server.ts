@@ -197,7 +197,12 @@ export async function executeTest(
   sb: SupabaseClientLike,
   test: any,
   ownerId: string,
-  opts: { startIdx?: number; scheduled?: boolean } = {},
+  opts: {
+    startIdx?: number;
+    scheduled?: boolean;
+    varsOverride?: Record<string, string>;
+    noStabilize?: boolean;
+  } = {},
 ): Promise<ExecuteResult> {
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
@@ -219,7 +224,11 @@ export async function executeTest(
   for (const n of secretNames) {
     if (typeof vars[n] === "string") vars[n] = decryptSecret(vars[n]);
   }
-  // Derive the concrete secret values from the DECRYPTED vars (for run-record masking).
+  // Data-driven testing: a dataset row's columns override the static variables for this run, so
+  // {{column}} resolves to that row's value. Apply BEFORE deriving the mask list so a row value
+  // overriding a secret-named variable is still masked in run records / LLM payloads.
+  if (opts.varsOverride) Object.assign(vars, opts.varsOverride);
+  // Derive the concrete secret values from the FINAL vars (for run-record masking).
   const secrets = secretNames
     .map((n) => vars[n])
     .filter((v): v is string => typeof v === "string" && v.length > 0);
@@ -336,7 +345,9 @@ export async function executeTest(
   if (rErr) throw new Error(rErr.message);
 
   // Persist self-stabilized locators AFTER the run is recorded; never let this lose the run.
-  if (stabilizedSteps) {
+  // Skipped for data-driven runs: many rows execute the SAME test in parallel, so concurrent
+  // spec writes would clobber each other (last-write-wins). Stabilize via a normal single run.
+  if (stabilizedSteps && !opts.noStabilize) {
     try {
       const { error: sErr } = await sb
         .from("tests")
