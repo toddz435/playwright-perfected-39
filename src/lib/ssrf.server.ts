@@ -14,9 +14,19 @@ import { lookup } from "node:dns/promises";
 // metadata, CGNAT, IPv6 ULA/link-local, unspecified). Pure + unit-tested. A malformed input
 // is treated as unsafe (returns true) so it can't slip past as "public".
 export function isPrivateIp(ip: string): boolean {
-  // IPv4-mapped IPv6 (e.g. ::ffff:169.254.169.254) — classify the embedded IPv4.
-  const mapped = ip.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
-  if (mapped) ip = mapped[1];
+  const lower = ip.toLowerCase().replace(/%.*$/, ""); // strip any zone id
+  // IPv4-mapped IPv6 — classify the embedded IPv4. WHATWG `new URL` canonicalizes these to the
+  // HEX form (::ffff:a9fe:a9fe), and dns.lookup echoes IP literals, so we must handle BOTH the
+  // dotted (::ffff:1.2.3.4) and hex (::ffff:HHHH:HHHH / ::ffff:HHHH) representations.
+  const dotted = lower.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  const hexMapped = lower.match(/^::ffff:([0-9a-f]{1,4})(?::([0-9a-f]{1,4}))?$/);
+  if (dotted) {
+    ip = dotted[1];
+  } else if (hexMapped) {
+    const hi = hexMapped[2] !== undefined ? parseInt(hexMapped[1], 16) : 0;
+    const lo = parseInt(hexMapped[2] ?? hexMapped[1], 16);
+    ip = `${(hi >> 8) & 255}.${hi & 255}.${(lo >> 8) & 255}.${lo & 255}`;
+  }
 
   if (ip.includes(".")) {
     const parts = ip.split(".").map((p) => Number(p));
@@ -33,9 +43,9 @@ export function isPrivateIp(ip: string): boolean {
     return false;
   }
 
-  const v = ip.toLowerCase().replace(/%.*$/, ""); // strip any zone id
+  const v = lower;
   if (v === "::1" || v === "::") return true; // loopback / unspecified
-  if (v.startsWith("fe80")) return true; // link-local fe80::/10
+  if (/^fe[89ab]/.test(v)) return true; // link-local fe80::/10 (fe80–febf)
   if (v.startsWith("fc") || v.startsWith("fd")) return true; // ULA fc00::/7
   if (!v.includes(":")) return true; // not a recognizable v4 or v6 literal → unsafe
   return false;

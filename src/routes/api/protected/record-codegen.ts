@@ -17,11 +17,11 @@ import { join } from "node:path";
 //
 // SECURITY (tracked in docs/roadmap.md): gated to authenticated users; the recorded `url` is
 // SSRF-checked (assertPublicUrl) — private/internal addresses are refused unless
-// RECORDER_ALLOW_PRIVATE_HOSTS=true (set only on a trusted local machine, where recording
-// localhost is intentional). Still owed before a cloud runner: a per-user concurrency cap and
+// ALLOW_PRIVATE_HOSTS=true (set only on a trusted local machine, where recording localhost is
+// intentional). Still owed before a cloud runner: a per-user concurrency cap and
 // auto-converting recorded fill() values to {{secret}} so passwords aren't captured raw.
 const RECORD_TIMEOUT_MS = 15 * 60 * 1000;
-const ALLOW_PRIVATE_HOSTS = process.env.RECORDER_ALLOW_PRIVATE_HOSTS === "true";
+const ALLOW_PRIVATE_HOSTS = process.env.ALLOW_PRIVATE_HOSTS === "true";
 
 export const Route = createFileRoute("/api/protected/record-codegen")({
   server: {

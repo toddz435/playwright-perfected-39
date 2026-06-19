@@ -21,11 +21,16 @@ describe("isPrivateIp", () => {
       expect(isPrivateIp(ip)).toBe(false);
   });
 
-  it("handles IPv6 + IPv4-mapped", () => {
+  it("handles IPv6 + IPv4-mapped (dotted AND hex)", () => {
     expect(isPrivateIp("::1")).toBe(true);
     expect(isPrivateIp("fe80::1")).toBe(true);
+    expect(isPrivateIp("febf::1")).toBe(true); // fe80::/10 upper bound
     expect(isPrivateIp("fd00::1")).toBe(true);
-    expect(isPrivateIp("::ffff:169.254.169.254")).toBe(true);
+    expect(isPrivateIp("::ffff:169.254.169.254")).toBe(true); // dotted mapped
+    // Hex IPv4-mapped — the form `new URL` canonicalizes to (was the bypass).
+    expect(isPrivateIp("::ffff:a9fe:a9fe")).toBe(true); // 169.254.169.254
+    expect(isPrivateIp("::ffff:7f00:1")).toBe(true); // 127.0.0.1
+    expect(isPrivateIp("::ffff:0a00:0001")).toBe(true); // 10.0.0.1
     expect(isPrivateIp("2606:4700:4700::1111")).toBe(false); // public (Cloudflare DNS)
   });
 
