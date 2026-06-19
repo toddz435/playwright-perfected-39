@@ -39,7 +39,6 @@ import {
   Save,
   X,
   Braces,
-  Eye,
   EyeOff,
   Image as ImageIcon,
 } from "lucide-react";
@@ -87,10 +86,9 @@ function TestDetail() {
   const [draft, setDraft] = useState<any[]>([]);
   const [savingSteps, setSavingSteps] = useState(false);
   const [varRows, setVarRows] = useState<
-    { name: string; value: string; secret: boolean; _k: string }[]
+    { name: string; value: string; secret: boolean; stored?: boolean; _k: string }[]
   >([]);
   const [savingVars, setSavingVars] = useState(false);
-  const [showSecrets, setShowSecrets] = useState(false);
   // Visual-regression image viewer: signed URLs per screenshot step, keyed `${runId}:${sid|idx}`.
   const [imgState, setImgState] = useState<
     Record<string, { busy?: boolean; updating?: boolean; urls?: Record<string, string> }>
@@ -118,12 +116,17 @@ function TestDetail() {
         Array.isArray(test.spec?.secrets) ? test.spec.secrets : [],
       );
       setVarRows(
-        Object.entries(specVars(test.spec)).map(([name, value]) => ({
-          name,
-          value,
-          secret: secretNames.has(name),
-          _k: crypto.randomUUID(),
-        })),
+        Object.entries(specVars(test.spec)).map(([name, value]) => {
+          const secret = secretNames.has(name);
+          return {
+            name,
+            // Secrets are write-only: never load the stored (encrypted) value into the client.
+            value: secret ? "" : value,
+            secret,
+            stored: secret && value.length > 0, // a value is already saved server-side
+            _k: crypto.randomUUID(),
+          };
+        }),
       );
     }
   }, [test]);
@@ -136,26 +139,32 @@ function TestDetail() {
   const saveVars = async () => {
     const variables: Record<string, string> = {};
     const secrets: string[] = [];
+    const keep: string[] = []; // secrets left blank → keep the stored (encrypted) value
     const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
-    for (const { name, value, secret } of varRows) {
+    for (const { name, value, secret, stored } of varRows) {
       const n = name.trim();
       if (!n) continue;
       if (!/^[\w.-]+$/.test(n) || RESERVED.has(n))
         return toast.error(
           `Invalid variable name "${n}" — use letters, numbers, . _ - (no spaces).`,
         );
-      variables[n] = value;
-      if (secret) secrets.push(n);
+      if (secret) {
+        secrets.push(n);
+        if (value.trim() === "" && stored) keep.push(n); // unchanged → keep existing
+      }
+      variables[n] = value; // for kept secrets this is "", server uses the stored value
     }
     setSavingVars(true);
-    const { error } = await supabase
-      .from("tests")
-      .update({ spec: { ...test.spec, variables, secrets } })
-      .eq("id", testId);
-    setSavingVars(false);
-    if (error) return toast.error(error.message);
-    toast.success("Variables saved");
-    refresh();
+    try {
+      // Server encrypts secret values at rest before they touch the DB (write-only client).
+      await apiCall("/api/protected/save-variables", { testId, variables, secrets, keep });
+      toast.success("Variables saved");
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSavingVars(false);
+    }
   };
 
   const run = async (resumeFromStep?: number) => {
@@ -771,16 +780,22 @@ function TestDetail() {
               />
               <span className="text-muted-foreground text-xs">=</span>
               <Input
-                type={row.secret && !showSecrets ? "password" : "text"}
+                type={row.secret ? "password" : "text"}
                 autoComplete="off"
                 value={row.value}
                 onChange={(e) => setVar(i, { value: e.target.value })}
-                placeholder="value"
+                placeholder={
+                  row.secret
+                    ? row.stored
+                      ? "•••••• set — leave blank to keep"
+                      : "value (encrypted at rest)"
+                    : "value"
+                }
                 className="bg-input/50 text-xs font-mono flex-1 min-w-[160px]"
               />
               <label
                 className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none"
-                title="Secret: masked here and never stored in run records"
+                title="Secret: encrypted at rest, masked here, never stored in run records"
               >
                 <input
                   type="checkbox"
@@ -805,15 +820,10 @@ function TestDetail() {
               <Plus className="h-3.5 w-3.5 mr-1" /> Add variable
             </Button>
             {varRows.some((r) => r.secret) && (
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={showSecrets}
-                  onChange={(e) => setShowSecrets(e.target.checked)}
-                />
-                {showSecrets ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}{" "}
-                Show secret values
-              </label>
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <EyeOff className="h-3.5 w-3.5" /> Secrets are encrypted at rest and can't be
+                viewed — only replaced.
+              </span>
             )}
           </div>
         </div>
