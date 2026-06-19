@@ -34,6 +34,7 @@ import {
   ArrowUp,
   GitBranch,
   Repeat,
+  Database,
   ArrowDown,
   Plus,
   Save,
@@ -93,10 +94,20 @@ function TestDetail() {
   const [imgState, setImgState] = useState<
     Record<string, { busy?: boolean; updating?: boolean; urls?: Record<string, string> }>
   >({});
+  // Data-Driven Testing: the user's datasets (for the attach dropdown) + per-row run results.
+  const [datasets, setDatasets] = useState<any[]>([]);
+  const [datasetRunBusy, setDatasetRunBusy] = useState(false);
+  const [datasetResults, setDatasetResults] = useState<any | null>(null);
 
   const refresh = async () => {
     const { data: t } = await supabase.from("tests").select("*").eq("id", testId).single();
     setTest(t);
+    // `datasets` isn't in the generated Supabase types yet — query via a loose handle.
+    const { data: ds } = await (supabase as any)
+      .from("datasets")
+      .select("id,name,columns,rows")
+      .order("created_at", { ascending: false });
+    setDatasets(ds || []);
     const { data: rs } = await supabase
       .from("runs")
       .select("*")
@@ -538,6 +549,35 @@ function TestDetail() {
     setTest((t: any) => ({ ...t, spec: newSpec }));
   };
 
+  // DDT: attach (or detach) a dataset to this test. Persisted on the spec.
+  const setDataset = async (datasetId: string) => {
+    const newSpec = { ...test.spec, datasetId: datasetId || undefined };
+    const { error } = await supabase.from("tests").update({ spec: newSpec }).eq("id", testId);
+    if (error) return toast.error(error.message);
+    setTest((t: any) => ({ ...t, spec: newSpec }));
+    setDatasetResults(null);
+  };
+
+  // DDT: run the test once per dataset row.
+  const runWithDataset = async () => {
+    setDatasetRunBusy(true);
+    setDatasetResults(null);
+    try {
+      const r = await apiCall<any>("/api/protected/run-dataset", { testId });
+      setDatasetResults(r);
+      const extra = [r.errored ? `${r.errored} errored` : "", r.skipped ? `${r.skipped} skipped` : ""]
+        .filter(Boolean)
+        .join(", ");
+      const msg = `${r.passed}/${r.rows} rows passed${r.failed ? `, ${r.failed} failed` : ""}${extra ? `, ${extra}` : ""}`;
+      if (r.failed > 0 || r.errored > 0 || r.passed === 0) toast.error(msg);
+      else toast.success(msg);
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setDatasetRunBusy(false);
+  };
+
   if (loading)
     return (
       <div className="p-12 flex items-center justify-center">
@@ -599,6 +639,42 @@ function TestDetail() {
                   ))}
                 </select>
               </label>
+            )}
+            {test.type === "browser" && datasets.length > 0 && (
+              <label
+                className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
+                title="Drive this test from a dataset — it runs once per row, binding each row's columns to {{variables}}."
+              >
+                <Database className="h-3.5 w-3.5" />
+                Dataset
+                <select
+                  value={test.spec?.datasetId || ""}
+                  onChange={(e) => setDataset(e.target.value)}
+                  className="bg-input/50 border border-border rounded-md px-2 py-1 text-xs"
+                >
+                  <option value="">none</option>
+                  {datasets.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({(d.rows || []).length})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {test.type === "browser" && test.spec?.datasetId && (
+              <Button
+                variant="outline"
+                disabled={datasetRunBusy || running}
+                onClick={runWithDataset}
+                title="Run the test once per row of the attached dataset."
+              >
+                {datasetRunBusy ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Database className="h-4 w-4 mr-1" />
+                )}{" "}
+                Run with dataset
+              </Button>
             )}
             {test.type === "browser" && (
               <Button
@@ -1292,6 +1368,50 @@ function TestDetail() {
           </div>
         )}
       </section>
+
+      {/* Dataset run results (per row) */}
+      {datasetResults && (
+        <section className="glass rounded-2xl p-6 shadow-card">
+          <h2 className="font-semibold text-lg mb-3 flex items-center gap-2">
+            <Database className="h-4 w-4 text-primary-glow" /> Dataset run — {datasetResults.passed}/
+            {datasetResults.rows} rows passed
+          </h2>
+          <div className="grid gap-1.5">
+            {datasetResults.results.map((r: any) => {
+              const ok = r.status === "passed";
+              const skipped = "skipped" in r;
+              const errored = "error" in r;
+              return (
+                <div
+                  key={r.row}
+                  className="flex items-center gap-2 text-sm font-mono rounded-md border border-border bg-surface/40 px-3 py-1.5"
+                >
+                  {ok ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+                  ) : skipped ? (
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                  )}
+                  <span className="text-muted-foreground">row {r.row + 1}</span>
+                  <span className="flex-1 truncate">{r.label}</span>
+                  <span
+                    className={
+                      ok
+                        ? "text-success"
+                        : skipped
+                          ? "text-muted-foreground"
+                          : "text-destructive"
+                    }
+                  >
+                    {ok ? "passed" : skipped ? r.skipped : errored ? r.error : r.status}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Run history */}
       <section>

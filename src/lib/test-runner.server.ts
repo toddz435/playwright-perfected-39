@@ -197,7 +197,7 @@ export async function executeTest(
   sb: SupabaseClientLike,
   test: any,
   ownerId: string,
-  opts: { startIdx?: number; scheduled?: boolean } = {},
+  opts: { startIdx?: number; scheduled?: boolean; varsOverride?: Record<string, string> } = {},
 ): Promise<ExecuteResult> {
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
@@ -223,6 +223,9 @@ export async function executeTest(
   const secrets = secretNames
     .map((n) => vars[n])
     .filter((v): v is string => typeof v === "string" && v.length > 0);
+  // Data-driven testing: a dataset row's columns override the static variables for this run, so
+  // {{column}} resolves to that row's value. Row values are plaintext data (not secrets).
+  if (opts.varsOverride) Object.assign(vars, opts.varsOverride);
 
   if (test.type === "api") {
     const requests = interpolate((test.spec?.requests || []) as any[], vars);
