@@ -707,7 +707,7 @@ function TestDetail() {
               </Button>
             )}
             <Button
-              disabled={running}
+              disabled={running || datasetRunBusy}
               onClick={() => run()}
               className="bg-gradient-primary border-0 shadow-glow"
             >

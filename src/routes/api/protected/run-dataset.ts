@@ -69,11 +69,16 @@ export const Route = createFileRoute("/api/protected/run-dataset")({
                 }
                 if (e instanceof ConcurrencyError)
                   return { row: i, label, skipped: "runner busy" } as const;
-                throw e;
+                // Never reject — mapPool would abandon the other rows.
+                return { row: i, label, error: e?.message || "Failed to acquire a slot" } as const;
               }
             }
             try {
-              const { run } = await executeTest(sb, test, userId, { varsOverride: overrides });
+              // noStabilize: parallel rows run the same test, so don't race the spec write.
+              const { run } = await executeTest(sb, test, userId, {
+                varsOverride: overrides,
+                noStabilize: true,
+              });
               return { row: i, label, status: run.status, runId: run.id } as const;
             } catch (e: any) {
               return { row: i, label, error: e?.message || "Failed" } as const;
