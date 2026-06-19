@@ -530,6 +530,14 @@ function TestDetail() {
     toast.success(on ? "AI auto-heal enabled for this test" : "AI auto-heal disabled");
   };
 
+  // Reliability: how many times to auto-retry a failed run (0–3). Persisted on the spec.
+  const setRetries = async (n: number) => {
+    const newSpec = { ...test.spec, retries: n };
+    const { error } = await supabase.from("tests").update({ spec: newSpec }).eq("id", testId);
+    if (error) return toast.error(error.message);
+    setTest((t: any) => ({ ...t, spec: newSpec }));
+  };
+
   if (loading)
     return (
       <div className="p-12 flex items-center justify-center">
@@ -570,6 +578,26 @@ function TestDetail() {
                 <Wand2 className="h-3.5 w-3.5" />
                 AI auto-heal
                 <Switch checked={test.spec?.aiHealing !== false} onCheckedChange={toggleHealing} />
+              </label>
+            )}
+            {test.type === "browser" && (
+              <label
+                className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
+                title="Auto-retry a failed run this many times (fresh browser each attempt). Passes if any attempt passes — resilience against flaky steps."
+              >
+                <Repeat className="h-3.5 w-3.5" />
+                Retries
+                <select
+                  value={Math.min(3, Math.max(0, Number(test.spec?.retries) || 0))}
+                  onChange={(e) => setRetries(Number(e.target.value))}
+                  className="bg-input/50 border border-border rounded-md px-2 py-1 text-xs font-mono"
+                >
+                  {[0, 1, 2, 3].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </label>
             )}
             {test.type === "browser" && (
@@ -1294,6 +1322,16 @@ function TestDetail() {
                           className="border-amber-500/40 text-amber-500 gap-1"
                         >
                           <Wand2 className="h-3 w-3" /> {r.summary.healed} auto-healed
+                        </Badge>
+                      )}
+                      {(r.summary?.attempts ?? 1) > 1 && (
+                        <Badge
+                          variant="outline"
+                          className="border-primary/40 text-primary-glow gap-1"
+                          title="This run was retried"
+                        >
+                          <Repeat className="h-3 w-3" /> attempt {r.summary.attempts}/
+                          {r.summary.maxAttempts}
                         </Badge>
                       )}
                     </div>

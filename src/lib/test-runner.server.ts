@@ -205,6 +205,10 @@ export async function executeTest(
   const stepResults: any[] = [];
   let status: "passed" | "failed" = "passed";
   let stabilizedSteps: any[] | null = null;
+  // Reliability: retry a failed browser run up to `retries` times (fresh browser each attempt);
+  // pass if any attempt passes. Capped 0–3.
+  const retries = Math.min(3, Math.max(0, Math.floor(Number(test.spec?.retries) || 0)));
+  let attempts = 1;
 
   // Substitute {{variables}} into a working copy for execution. The ORIGINAL spec is kept
   // for self-stabilization persistence so {{vars}} stay in the saved test.
@@ -282,7 +286,13 @@ export async function executeTest(
             html: maskSecrets(a.html, secrets),
           })
       : undefined;
-    const result = await runBrowserSteps(runSteps, { startIdx, heal });
+    // Retry the whole run (fresh browser each attempt) up to `retries` times; keep the first
+    // passing attempt, else the last. Self-heal/fallbacks still happen within each attempt.
+    let result = await runBrowserSteps(runSteps, { startIdx, heal });
+    for (let attempt = 2; result.status === "failed" && attempt <= retries + 1; attempt++) {
+      attempts = attempt;
+      result = await runBrowserSteps(runSteps, { startIdx, heal });
+    }
     stepResults.push(...result.steps);
     if (result.status === "failed") status = "failed";
     // Visual regression: diff any screenshot steps against their stored baselines.
@@ -312,6 +322,7 @@ export async function executeTest(
         passed: safeSteps.filter((s: any) => s.status === "passed").length,
         healed: safeSteps.filter((s: any) => s.status === "healed").length,
         failed: safeSteps.filter((s: any) => s.status === "failed").length,
+        ...(attempts > 1 ? { attempts, maxAttempts: retries + 1 } : {}),
         ...(opts.scheduled ? { scheduled: true } : {}),
       },
     })
