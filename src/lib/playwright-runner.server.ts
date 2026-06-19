@@ -167,7 +167,13 @@ export type RunOptions = {
   stepTimeoutMs?: number;
   gotoTimeoutMs?: number;
   headless?: boolean;
+  // Wall-clock budget for this run, checked BETWEEN steps; if exceeded the run stops cleanly
+  // with a "time budget" failure. (A single in-flight step is bounded by its own
+  // per-step/goto timeout, not preempted mid-step.) Pairs with the per-step/loop caps.
+  maxRunMs?: number;
 };
+
+export const DEFAULT_RUN_BUDGET_MS = 5 * 60 * 1000;
 
 // Errors thrown by step executors. Only LocatorError is considered "healable" — a real
 // assertion mismatch (element found, but wrong text/value/count) is a genuine failure.
@@ -196,6 +202,8 @@ export async function runBrowserSteps(
   const stepTimeout = opts.stepTimeoutMs ?? 8000;
   const gotoTimeout = opts.gotoTimeoutMs ?? 15000;
   const headless = opts.headless ?? true;
+  const maxRunMs = opts.maxRunMs ?? DEFAULT_RUN_BUDGET_MS;
+  const runStart = Date.now();
 
   // Defensive: the editor validates block balance on save, but a spec could reach the runner
   // unbalanced (API/import/older data). Fail fast with a clear error rather than silently
@@ -323,6 +331,20 @@ export async function runBrowserSteps(
           value: s.value,
         });
         continue;
+      }
+
+      // Run budget (checked between steps): stop cleanly once the run has exceeded its time
+      // cap. A single in-flight step is bounded by its own per-step/goto timeout, not here.
+      if (Date.now() - runStart > maxRunMs) {
+        rec({
+          idx: i,
+          status: "failed",
+          action: s.action,
+          target: s.locator ? locatorLabel(s.locator) : s.target,
+          error: `Run exceeded its time budget (${Math.round(maxRunMs / 1000)}s).`,
+        });
+        status = "failed";
+        break;
       }
 
       // --- control-flow markers (if / else / endif) — see src/lib/blocks.ts ---

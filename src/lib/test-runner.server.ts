@@ -2,7 +2,7 @@
 // (api/protected/run-test) and the scheduled route (api/public/run-due-schedules), so
 // their execution, assertions, healing, summary, and self-stabilization can't drift.
 // Runs on the Node server only (Playwright isn't available in the Cloudflare Worker).
-import { runBrowserSteps } from "@/lib/playwright-runner.server";
+import { runBrowserSteps, DEFAULT_RUN_BUDGET_MS } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
 import { interpolate, specVars, maskSecrets } from "@/lib/vars";
@@ -205,6 +205,10 @@ export async function executeTest(
   const stepResults: any[] = [];
   let status: "passed" | "failed" = "passed";
   let stabilizedSteps: any[] | null = null;
+  // Reliability: retry a failed browser run up to `retries` times (fresh browser each attempt);
+  // pass if any attempt passes. Capped 0–3.
+  const retries = Math.min(3, Math.max(0, Math.floor(Number(test.spec?.retries) || 0)));
+  let attempts = 1;
 
   // Substitute {{variables}} into a working copy for execution. The ORIGINAL spec is kept
   // for self-stabilization persistence so {{vars}} stay in the saved test.
@@ -282,7 +286,18 @@ export async function executeTest(
             html: maskSecrets(a.html, secrets),
           })
       : undefined;
-    const result = await runBrowserSteps(runSteps, { startIdx, heal });
+    // Retry the whole run (fresh browser each attempt) up to `retries` times; keep the first
+    // passing attempt, else the last. Self-heal/fallbacks still happen within each attempt.
+    // The time budget is shared ACROSS attempts (a single deadline) so retries can't multiply
+    // wall-clock / hold a run slot for budget × (retries+1).
+    const runDeadline = Date.now() + DEFAULT_RUN_BUDGET_MS;
+    const runOnce = () =>
+      runBrowserSteps(runSteps, { startIdx, heal, maxRunMs: Math.max(0, runDeadline - Date.now()) });
+    let result = await runOnce();
+    for (let attempt = 2; result.status === "failed" && attempt <= retries + 1; attempt++) {
+      attempts = attempt;
+      result = await runOnce();
+    }
     stepResults.push(...result.steps);
     if (result.status === "failed") status = "failed";
     // Visual regression: diff any screenshot steps against their stored baselines.
@@ -312,6 +327,7 @@ export async function executeTest(
         passed: safeSteps.filter((s: any) => s.status === "passed").length,
         healed: safeSteps.filter((s: any) => s.status === "healed").length,
         failed: safeSteps.filter((s: any) => s.status === "failed").length,
+        ...(attempts > 1 ? { attempts, maxAttempts: retries + 1 } : {}),
         ...(opts.scheduled ? { scheduled: true } : {}),
       },
     })
