@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, json } from "@/lib/server-auth.server";
+import { assertPublicUrl } from "@/lib/ssrf.server";
 import { spawn } from "node:child_process";
 import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,10 +15,13 @@ import { join } from "node:path";
 // recorder (or the timeout fires). The child is launched in its own process group so the
 // whole tree (codegen + browser) can be killed on timeout or client disconnect.
 //
-// SECURITY (tracked in docs/roadmap.md): this is gated to authenticated users on a LOCAL
-// runner. Before a cloud runner ships, add: a private-IP/SSRF block on `url`, a per-user
-// concurrency cap, and secret-variable handling so recorded fill() values aren't stored raw.
+// SECURITY (tracked in docs/roadmap.md): gated to authenticated users; the recorded `url` is
+// SSRF-checked (assertPublicUrl) — private/internal addresses are refused unless
+// ALLOW_PRIVATE_HOSTS=true (set only on a trusted local machine, where recording localhost is
+// intentional). Still owed before a cloud runner: a per-user concurrency cap and
+// auto-converting recorded fill() values to {{secret}} so passwords aren't captured raw.
 const RECORD_TIMEOUT_MS = 15 * 60 * 1000;
+const ALLOW_PRIVATE_HOSTS = process.env.ALLOW_PRIVATE_HOSTS === "true";
 
 export const Route = createFileRoute("/api/protected/record-codegen")({
   server: {
@@ -26,8 +30,15 @@ export const Route = createFileRoute("/api/protected/record-codegen")({
         try {
           await requireUser(request);
           const { url } = await request.json();
-          if (!url || typeof url !== "string" || !/^https?:\/\//i.test(url)) {
+          if (!url || typeof url !== "string") {
             return json({ error: "A http(s) URL is required" }, { status: 400 });
+          }
+          // SSRF guard: scheme + resolve-and-block private/internal addresses (unless this is
+          // a trusted local machine where recording localhost is intentional).
+          try {
+            await assertPublicUrl(url, ALLOW_PRIVATE_HOSTS);
+          } catch (e: any) {
+            return json({ error: e?.message || "URL not allowed" }, { status: 400 });
           }
 
           const outFile = join(

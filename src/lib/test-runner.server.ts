@@ -7,6 +7,11 @@ import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
 import { interpolate, specVars, maskSecrets } from "@/lib/vars";
 import { decryptSecret } from "@/lib/secrets.server";
+import { assertPublicUrl } from "@/lib/ssrf.server";
+
+// Allow private/internal fetch targets only on a trusted local machine (set in .env). Unset on
+// shared/cloud runners → SSRF-protected. Read once at module load (env is set at boot).
+const ALLOW_PRIVATE_HOSTS = process.env.ALLOW_PRIVATE_HOSTS === "true";
 import { compareVisual, selectExpiredCaptures } from "@/lib/visual.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -225,6 +230,10 @@ export async function executeTest(
       const req = requests[i];
       const sStart = Date.now();
       try {
+        // SSRF guard: this fetch hits a fully user-controlled URL server-side (and runs
+        // unattended via the public scheduled-runs route), so block private/internal targets
+        // unless explicitly allowed on a trusted local machine.
+        await assertPublicUrl(req.url, ALLOW_PRIVATE_HOSTS);
         const res = await fetch(req.url, {
           method: req.method,
           headers: { ...(req.headers || {}) },
