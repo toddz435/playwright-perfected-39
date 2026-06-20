@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { apiCall } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, X, Send, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Sparkles, Trash2, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 type Msg = { role: "user" | "assistant"; content: string; error?: boolean };
@@ -22,23 +22,26 @@ export function SupportChat() {
   const [busy, setBusy] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Synchronous in-flight guard — `busy` state lags a tick behind a click, so a fast double
+  // send/retry could otherwise fire two requests before the disabled state takes effect.
+  const inFlight = useRef(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy, open]);
+  // Focus the input when the panel opens so the user can type right away.
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
 
-  const send = async (text: string) => {
-    const content = text.trim();
-    if (!content || busy) return;
-    // Send only real turns — drop any prior error bubbles so they aren't replayed to Claude as
-    // fake assistant history (wasted tokens / confused context).
-    const toSend: Msg[] = [...messages.filter((m) => !m.error), { role: "user", content }];
-    setMessages((m) => [...m, { role: "user", content }]);
-    setInput("");
+  // Post a conversation (already ending in a user turn) and append the reply, or an error bubble.
+  const requestReply = async (history: Msg[]) => {
+    inFlight.current = true;
     setBusy(true);
     try {
       const { reply } = await apiCall<{ reply: string }>("/api/protected/support-chat", {
-        messages: toSend,
+        messages: history,
         path,
       });
       setMessages((m) => [...m, { role: "assistant", content: reply }]);
@@ -47,13 +50,35 @@ export function SupportChat() {
         ...m,
         {
           role: "assistant",
-          content: `⚠️ ${e.message || "Something went wrong. Try again."}`,
+          content: `⚠️ ${e.message || "Something went wrong."}`,
           error: true,
         },
       ]);
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
+  };
+
+  const send = async (text: string) => {
+    const content = text.trim();
+    if (!content || inFlight.current) return;
+    // Send only real turns — drop any prior error bubbles so they aren't replayed to Claude as
+    // fake assistant history (wasted tokens / confused context).
+    const history: Msg[] = [...messages.filter((m) => !m.error), { role: "user", content }];
+    setMessages((m) => [...m, { role: "user", content }]);
+    setInput("");
+    await requestReply(history);
+  };
+
+  // Re-send after a failure: drop the trailing error bubble and replay the conversation (which
+  // still ends at the last user turn) — no duplicate user message.
+  const retry = async () => {
+    if (inFlight.current) return;
+    const cleaned = messages.filter((m) => !m.error);
+    if (!cleaned.length || cleaned[cleaned.length - 1].role !== "user") return;
+    setMessages(cleaned);
+    await requestReply(cleaned);
   };
 
   return (
@@ -122,7 +147,7 @@ export function SupportChat() {
             {messages.map((m, i) => (
               <div
                 key={i}
-                className={m.role === "user" ? "flex justify-end" : "flex justify-start"}
+                className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
               >
                 <div
                   className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
@@ -135,12 +160,31 @@ export function SupportChat() {
                 >
                   {m.role === "assistant" ? (
                     <div className="prose prose-sm prose-invert max-w-none prose-p:my-1.5 prose-ol:my-1.5 prose-ul:my-1.5 prose-li:my-0.5 prose-headings:my-2 prose-code:text-primary-glow">
-                      <ReactMarkdown>{m.content}</ReactMarkdown>
+                      <ReactMarkdown
+                        components={{
+                          // Open any link the assistant returns in a new tab so a doc/app link
+                          // doesn't navigate away from (and unmount) the app + this chat.
+                          a: ({ node: _node, ...props }) => (
+                            <a {...props} target="_blank" rel="noreferrer" />
+                          ),
+                        }}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
                     </div>
                   ) : (
                     m.content
                   )}
                 </div>
+                {m.error && i === messages.length - 1 && (
+                  <button
+                    onClick={retry}
+                    disabled={busy}
+                    className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Retry
+                  </button>
+                )}
               </div>
             ))}
             {busy && (
@@ -155,6 +199,7 @@ export function SupportChat() {
           {/* Input */}
           <div className="border-t border-border p-2 flex items-end gap-2">
             <textarea
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
