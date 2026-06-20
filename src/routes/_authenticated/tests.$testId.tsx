@@ -550,12 +550,15 @@ function TestDetail() {
   const deleteTest = async () => {
     if (!window.confirm(`Delete test "${test.name}" and all its runs? This cannot be undone.`))
       return;
-    // schedules have no FK to tests, so remove them explicitly; runs cascade.
-    await supabase.from("schedules").delete().eq("test_id", testId);
-    const { error } = await supabase.from("tests").delete().eq("id", testId);
-    if (error) return toast.error(error.message);
-    toast.success("Test deleted");
-    nav({ to: "/dashboard" });
+    // Server-side: purges the test's screenshot baselines/captures, then removes schedules + the
+    // test row (runs cascade) — so nothing orphans in Storage.
+    try {
+      await apiCall("/api/protected/delete-test", { testId });
+      toast.success("Test deleted");
+      nav({ to: "/dashboard" });
+    } catch (e: any) {
+      toast.error(e.message);
+    }
   };
 
   const toggleHealing = async (on: boolean) => {
