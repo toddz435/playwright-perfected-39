@@ -31,10 +31,11 @@ import { Route as ApiProtectedSaveVariablesRouteImport } from './routes/api/prot
 import { Route as ApiProtectedRunTestsRouteImport } from './routes/api/protected/run-tests'
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
 import { Route as ApiProtectedRunDatasetRouteImport } from './routes/api/protected/run-dataset'
+import { Route as ApiProtectedRefreshDatasetRouteImport } from './routes/api/protected/refresh-dataset'
 import { Route as ApiProtectedRecordCodegenRouteImport } from './routes/api/protected/record-codegen'
-import { Route as ApiProtectedImportDatasetUrlRouteImport } from './routes/api/protected/import-dataset-url'
 import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protected/harden-test'
 import { Route as ApiProtectedHardenProjectRouteImport } from './routes/api/protected/harden-project'
+import { Route as ApiProtectedConnectDatasetSourceRouteImport } from './routes/api/protected/connect-dataset-source'
 import { Route as ApiProtectedAiHealSelectorRouteImport } from './routes/api/protected/ai-heal-selector'
 import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/protected/ai-generate-test'
 import { Route as ApiProtectedAiGenerateApiSuiteRouteImport } from './routes/api/protected/ai-generate-api-suite'
@@ -156,16 +157,16 @@ const ApiProtectedRunDatasetRoute = ApiProtectedRunDatasetRouteImport.update({
   path: '/api/protected/run-dataset',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProtectedRefreshDatasetRoute =
+  ApiProtectedRefreshDatasetRouteImport.update({
+    id: '/api/protected/refresh-dataset',
+    path: '/api/protected/refresh-dataset',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiProtectedRecordCodegenRoute =
   ApiProtectedRecordCodegenRouteImport.update({
     id: '/api/protected/record-codegen',
     path: '/api/protected/record-codegen',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiProtectedImportDatasetUrlRoute =
-  ApiProtectedImportDatasetUrlRouteImport.update({
-    id: '/api/protected/import-dataset-url',
-    path: '/api/protected/import-dataset-url',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiProtectedHardenTestRoute = ApiProtectedHardenTestRouteImport.update({
@@ -177,6 +178,12 @@ const ApiProtectedHardenProjectRoute =
   ApiProtectedHardenProjectRouteImport.update({
     id: '/api/protected/harden-project',
     path: '/api/protected/harden-project',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiProtectedConnectDatasetSourceRoute =
+  ApiProtectedConnectDatasetSourceRouteImport.update({
+    id: '/api/protected/connect-dataset-source',
+    path: '/api/protected/connect-dataset-source',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiProtectedAiHealSelectorRoute =
@@ -242,10 +249,11 @@ export interface FileRoutesByFullPath {
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
+  '/api/protected/connect-dataset-source': typeof ApiProtectedConnectDatasetSourceRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
-  '/api/protected/import-dataset-url': typeof ApiProtectedImportDatasetUrlRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
+  '/api/protected/refresh-dataset': typeof ApiProtectedRefreshDatasetRoute
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/run-tests': typeof ApiProtectedRunTestsRoute
@@ -276,10 +284,11 @@ export interface FileRoutesByTo {
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
+  '/api/protected/connect-dataset-source': typeof ApiProtectedConnectDatasetSourceRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
-  '/api/protected/import-dataset-url': typeof ApiProtectedImportDatasetUrlRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
+  '/api/protected/refresh-dataset': typeof ApiProtectedRefreshDatasetRoute
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/run-tests': typeof ApiProtectedRunTestsRoute
@@ -312,10 +321,11 @@ export interface FileRoutesById {
   '/api/protected/ai-generate-api-suite': typeof ApiProtectedAiGenerateApiSuiteRoute
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
+  '/api/protected/connect-dataset-source': typeof ApiProtectedConnectDatasetSourceRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
-  '/api/protected/import-dataset-url': typeof ApiProtectedImportDatasetUrlRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
+  '/api/protected/refresh-dataset': typeof ApiProtectedRefreshDatasetRoute
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/run-tests': typeof ApiProtectedRunTestsRoute
@@ -348,10 +358,11 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
+    | '/api/protected/connect-dataset-source'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
-    | '/api/protected/import-dataset-url'
     | '/api/protected/record-codegen'
+    | '/api/protected/refresh-dataset'
     | '/api/protected/run-dataset'
     | '/api/protected/run-test'
     | '/api/protected/run-tests'
@@ -382,10 +393,11 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
+    | '/api/protected/connect-dataset-source'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
-    | '/api/protected/import-dataset-url'
     | '/api/protected/record-codegen'
+    | '/api/protected/refresh-dataset'
     | '/api/protected/run-dataset'
     | '/api/protected/run-test'
     | '/api/protected/run-tests'
@@ -417,10 +429,11 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-api-suite'
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
+    | '/api/protected/connect-dataset-source'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
-    | '/api/protected/import-dataset-url'
     | '/api/protected/record-codegen'
+    | '/api/protected/refresh-dataset'
     | '/api/protected/run-dataset'
     | '/api/protected/run-test'
     | '/api/protected/run-tests'
@@ -444,10 +457,11 @@ export interface RootRouteChildren {
   ApiProtectedAiGenerateApiSuiteRoute: typeof ApiProtectedAiGenerateApiSuiteRoute
   ApiProtectedAiGenerateTestRoute: typeof ApiProtectedAiGenerateTestRoute
   ApiProtectedAiHealSelectorRoute: typeof ApiProtectedAiHealSelectorRoute
+  ApiProtectedConnectDatasetSourceRoute: typeof ApiProtectedConnectDatasetSourceRoute
   ApiProtectedHardenProjectRoute: typeof ApiProtectedHardenProjectRoute
   ApiProtectedHardenTestRoute: typeof ApiProtectedHardenTestRoute
-  ApiProtectedImportDatasetUrlRoute: typeof ApiProtectedImportDatasetUrlRoute
   ApiProtectedRecordCodegenRoute: typeof ApiProtectedRecordCodegenRoute
+  ApiProtectedRefreshDatasetRoute: typeof ApiProtectedRefreshDatasetRoute
   ApiProtectedRunDatasetRoute: typeof ApiProtectedRunDatasetRoute
   ApiProtectedRunTestRoute: typeof ApiProtectedRunTestRoute
   ApiProtectedRunTestsRoute: typeof ApiProtectedRunTestsRoute
@@ -614,18 +628,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedRunDatasetRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/refresh-dataset': {
+      id: '/api/protected/refresh-dataset'
+      path: '/api/protected/refresh-dataset'
+      fullPath: '/api/protected/refresh-dataset'
+      preLoaderRoute: typeof ApiProtectedRefreshDatasetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/record-codegen': {
       id: '/api/protected/record-codegen'
       path: '/api/protected/record-codegen'
       fullPath: '/api/protected/record-codegen'
       preLoaderRoute: typeof ApiProtectedRecordCodegenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/protected/import-dataset-url': {
-      id: '/api/protected/import-dataset-url'
-      path: '/api/protected/import-dataset-url'
-      fullPath: '/api/protected/import-dataset-url'
-      preLoaderRoute: typeof ApiProtectedImportDatasetUrlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/protected/harden-test': {
@@ -640,6 +654,13 @@ declare module '@tanstack/react-router' {
       path: '/api/protected/harden-project'
       fullPath: '/api/protected/harden-project'
       preLoaderRoute: typeof ApiProtectedHardenProjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/connect-dataset-source': {
+      id: '/api/protected/connect-dataset-source'
+      path: '/api/protected/connect-dataset-source'
+      fullPath: '/api/protected/connect-dataset-source'
+      preLoaderRoute: typeof ApiProtectedConnectDatasetSourceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/protected/ai-heal-selector': {
@@ -735,10 +756,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedAiGenerateApiSuiteRoute: ApiProtectedAiGenerateApiSuiteRoute,
   ApiProtectedAiGenerateTestRoute: ApiProtectedAiGenerateTestRoute,
   ApiProtectedAiHealSelectorRoute: ApiProtectedAiHealSelectorRoute,
+  ApiProtectedConnectDatasetSourceRoute: ApiProtectedConnectDatasetSourceRoute,
   ApiProtectedHardenProjectRoute: ApiProtectedHardenProjectRoute,
   ApiProtectedHardenTestRoute: ApiProtectedHardenTestRoute,
-  ApiProtectedImportDatasetUrlRoute: ApiProtectedImportDatasetUrlRoute,
   ApiProtectedRecordCodegenRoute: ApiProtectedRecordCodegenRoute,
+  ApiProtectedRefreshDatasetRoute: ApiProtectedRefreshDatasetRoute,
   ApiProtectedRunDatasetRoute: ApiProtectedRunDatasetRoute,
   ApiProtectedRunTestRoute: ApiProtectedRunTestRoute,
   ApiProtectedRunTestsRoute: ApiProtectedRunTestsRoute,

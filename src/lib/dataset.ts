@@ -54,6 +54,56 @@ export function suggestColumnForStep(step: StepLike, index: number): string {
   return normalizeColumn(hint, index);
 }
 
+// Normalizes a REST/JSON payload into the same {columns, rows} shape as a spreadsheet. Locates
+// the array of record objects across the common shapes — a bare array (Supabase REST), Airtable's
+// `{records:[{fields:{…}}]}`, or a `{data|rows|results|items|values:[…]}` wrapper — then unions the
+// keys (first-seen order) into normalized, unique column names. Cell values that are objects/arrays
+// are JSON-stringified; null/undefined → "". Pure + client-safe.
+export function jsonToRows(data: unknown): DatasetData {
+  let arr: any[] | null = null;
+  if (Array.isArray(data)) arr = data;
+  else if (data && typeof data === "object") {
+    const o = data as any;
+    if (Array.isArray(o.records))
+      // Airtable: unwrap each record's `fields` (fall back to the record itself if absent).
+      arr = o.records.map((r: any) => (r && typeof r === "object" && r.fields ? r.fields : r));
+    else
+      for (const k of ["data", "rows", "results", "items", "values"])
+        if (Array.isArray(o[k])) {
+          arr = o[k];
+          break;
+        }
+  }
+  if (!arr) return { columns: [], rows: [] };
+
+  const isRecord = (r: unknown): r is Record<string, unknown> =>
+    !!r && typeof r === "object" && !Array.isArray(r);
+  const records = arr.filter(isRecord);
+  if (!records.length) return { columns: [], rows: [] };
+
+  // Union of keys across all records, in first-seen order.
+  const rawCols: string[] = [];
+  const seen = new Set<string>();
+  for (const r of records)
+    for (const k of Object.keys(r))
+      if (!seen.has(k)) {
+        seen.add(k);
+        rawCols.push(k);
+      }
+  const columns = uniquifyColumns(rawCols.map((c, i) => normalizeColumn(c, i)));
+
+  const cell = (v: unknown): string =>
+    v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+  const rows = records.map((r) => {
+    const row: Record<string, string> = {};
+    rawCols.forEach((raw, i) => {
+      row[columns[i]] = cell(r[raw]);
+    });
+    return row;
+  });
+  return { columns, rows };
+}
+
 // Splits delimited text into records, honoring RFC4180 quotes ("a,b", escaped "").
 function parseRecords(text: string, delim: string): string[][] {
   const records: string[][] = [];
