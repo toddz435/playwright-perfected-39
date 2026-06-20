@@ -25,6 +25,7 @@ import { Route as AuthenticatedCodegenRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedApiTesterRouteImport } from './routes/_authenticated/api-tester'
 import { Route as ApiPublicRunDueSchedulesRouteImport } from './routes/api/public/run-due-schedules'
 import { Route as ApiProtectedUpdateBaselineRouteImport } from './routes/api/protected/update-baseline'
+import { Route as ApiProtectedSupportChatRouteImport } from './routes/api/protected/support-chat'
 import { Route as ApiProtectedSeedDemoRouteImport } from './routes/api/protected/seed-demo'
 import { Route as ApiProtectedScreenshotUrlRouteImport } from './routes/api/protected/screenshot-url'
 import { Route as ApiProtectedSaveVariablesRouteImport } from './routes/api/protected/save-variables'
@@ -125,6 +126,11 @@ const ApiProtectedUpdateBaselineRoute =
     path: '/api/protected/update-baseline',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedSupportChatRoute = ApiProtectedSupportChatRouteImport.update({
+  id: '/api/protected/support-chat',
+  path: '/api/protected/support-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProtectedSeedDemoRoute = ApiProtectedSeedDemoRouteImport.update({
   id: '/api/protected/seed-demo',
   path: '/api/protected/seed-demo',
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
   '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
+  '/api/protected/support-chat': typeof ApiProtectedSupportChatRoute
   '/api/protected/update-baseline': typeof ApiProtectedUpdateBaselineRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
 }
@@ -295,6 +302,7 @@ export interface FileRoutesByTo {
   '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
   '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
+  '/api/protected/support-chat': typeof ApiProtectedSupportChatRoute
   '/api/protected/update-baseline': typeof ApiProtectedUpdateBaselineRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
 }
@@ -332,6 +340,7 @@ export interface FileRoutesById {
   '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
   '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
+  '/api/protected/support-chat': typeof ApiProtectedSupportChatRoute
   '/api/protected/update-baseline': typeof ApiProtectedUpdateBaselineRoute
   '/api/public/run-due-schedules': typeof ApiPublicRunDueSchedulesRoute
 }
@@ -369,6 +378,7 @@ export interface FileRouteTypes {
     | '/api/protected/save-variables'
     | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
+    | '/api/protected/support-chat'
     | '/api/protected/update-baseline'
     | '/api/public/run-due-schedules'
   fileRoutesByTo: FileRoutesByTo
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/api/protected/save-variables'
     | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
+    | '/api/protected/support-chat'
     | '/api/protected/update-baseline'
     | '/api/public/run-due-schedules'
   id:
@@ -440,6 +451,7 @@ export interface FileRouteTypes {
     | '/api/protected/save-variables'
     | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
+    | '/api/protected/support-chat'
     | '/api/protected/update-baseline'
     | '/api/public/run-due-schedules'
   fileRoutesById: FileRoutesById
@@ -468,6 +480,7 @@ export interface RootRouteChildren {
   ApiProtectedSaveVariablesRoute: typeof ApiProtectedSaveVariablesRoute
   ApiProtectedScreenshotUrlRoute: typeof ApiProtectedScreenshotUrlRoute
   ApiProtectedSeedDemoRoute: typeof ApiProtectedSeedDemoRoute
+  ApiProtectedSupportChatRoute: typeof ApiProtectedSupportChatRoute
   ApiProtectedUpdateBaselineRoute: typeof ApiProtectedUpdateBaselineRoute
   ApiPublicRunDueSchedulesRoute: typeof ApiPublicRunDueSchedulesRoute
 }
@@ -584,6 +597,13 @@ declare module '@tanstack/react-router' {
       path: '/api/protected/update-baseline'
       fullPath: '/api/protected/update-baseline'
       preLoaderRoute: typeof ApiProtectedUpdateBaselineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/support-chat': {
+      id: '/api/protected/support-chat'
+      path: '/api/protected/support-chat'
+      fullPath: '/api/protected/support-chat'
+      preLoaderRoute: typeof ApiProtectedSupportChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/protected/seed-demo': {
@@ -767,6 +787,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedSaveVariablesRoute: ApiProtectedSaveVariablesRoute,
   ApiProtectedScreenshotUrlRoute: ApiProtectedScreenshotUrlRoute,
   ApiProtectedSeedDemoRoute: ApiProtectedSeedDemoRoute,
+  ApiProtectedSupportChatRoute: ApiProtectedSupportChatRoute,
   ApiProtectedUpdateBaselineRoute: ApiProtectedUpdateBaselineRoute,
   ApiPublicRunDueSchedulesRoute: ApiPublicRunDueSchedulesRoute,
 }
