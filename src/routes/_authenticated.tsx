@@ -15,6 +15,7 @@ import {
 import {
   CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator,
 } from "@/components/ui/command";
+import { SupportChat } from "@/components/support-chat";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthLayout,
@@ -230,6 +231,9 @@ function AuthLayout() {
           )}
         </CommandList>
       </CommandDialog>
+
+      {/* In-app support assistant (floating, every authenticated page) */}
+      <SupportChat />
     </div>
   );
 }

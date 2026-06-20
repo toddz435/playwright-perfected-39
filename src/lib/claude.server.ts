@@ -69,11 +69,14 @@ export async function claudeTool(opts: {
   return block.input;
 }
 
-// Calls Claude for a plain-text completion.
-export async function claudeText(opts: {
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+
+// Calls Claude for a plain-text completion over a multi-turn conversation (the `messages` array
+// alternates user/assistant). The single source of truth for text completions.
+export async function claudeChat(opts: {
   model?: string;
   system?: string;
-  user: string;
+  messages: ChatMessage[];
   maxTokens?: number;
 }): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
@@ -92,7 +95,7 @@ export async function claudeText(opts: {
         model: opts.model ?? DEFAULT_MODEL,
         max_tokens: opts.maxTokens ?? 2048,
         system: opts.system,
-        messages: [{ role: "user", content: opts.user }],
+        messages: opts.messages,
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -107,4 +110,19 @@ export async function claudeText(opts: {
     .map((b: any) => b.text)
     .join("")
     .trim();
+}
+
+// Calls Claude for a plain-text completion from a single user prompt (thin wrapper over claudeChat).
+export async function claudeText(opts: {
+  model?: string;
+  system?: string;
+  user: string;
+  maxTokens?: number;
+}): Promise<string> {
+  return claudeChat({
+    model: opts.model,
+    system: opts.system,
+    maxTokens: opts.maxTokens,
+    messages: [{ role: "user", content: opts.user }],
+  });
 }
