@@ -128,6 +128,15 @@ async function runVisualDiffs(
           });
           step.diff_path = `${base}-diff.png`;
         }
+        // Snapshot the baseline THIS run compared against, so viewing an old run shows the
+        // baseline-at-the-time rather than the current (possibly since-updated) baseline. It's a
+        // capture, so it prunes with the run under the same retention window. Uploaded LAST (it's
+        // the most expendable image) so a snapshot hiccup can't cost us the actual/diff captures.
+        await bucket.upload(`${base}-baseline.png`, pngBlob(baseline), {
+          contentType: "image/png",
+          upsert: true,
+        });
+        step.baseline_snapshot_path = `${base}-baseline.png`;
       } catch (e: any) {
         step.capture_error = e?.message || "capture upload failed";
       }

@@ -114,4 +114,31 @@ describe("selectExpiredCaptures", () => {
     expect(expired).not.toContain("sid-abc.png");
     expect(expired).not.toContain("baseline-0.png");
   });
+
+  it("recognizes loop iteration captures (-i{n}) and prunes them with their run", () => {
+    // Screenshots inside a repeat block get an -i{n} segment; they must group by captureId too.
+    const names = [
+      `${cap(2)}-0-i1-actual.png`, `${cap(2)}-0-i2-actual.png`,
+      `${cap(1)}-0-i1-actual.png`, `${cap(1)}-0-i2-actual.png`,
+    ];
+    const expired = selectExpiredCaptures(names, 1); // keep newest run only
+    expect(expired).toEqual([`${cap(1)}-0-i1-actual.png`, `${cap(1)}-0-i2-actual.png`]);
+  });
+
+  it("groups the per-run baseline snapshot with its run (expires together)", () => {
+    // A comparison run now also stores a `-baseline.png` snapshot; it must prune WITH the run,
+    // while the live baseline at the test root ("baseline-0.png") is never touched.
+    const names = [
+      `${cap(2)}-0-actual.png`, `${cap(2)}-0-diff.png`, `${cap(2)}-0-baseline.png`,
+      `${cap(1)}-0-actual.png`, `${cap(1)}-0-diff.png`, `${cap(1)}-0-baseline.png`,
+      "baseline-0.png",
+    ];
+    const expired = selectExpiredCaptures(names, 1); // keep newest run only
+    expect(expired).toEqual([
+      `${cap(1)}-0-actual.png`,
+      `${cap(1)}-0-diff.png`,
+      `${cap(1)}-0-baseline.png`,
+    ]);
+    expect(expired).not.toContain("baseline-0.png"); // live baseline untouched
+  });
 });

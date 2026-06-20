@@ -10,11 +10,14 @@ export type VisualDiff = {
   diffPng?: Buffer; // diff visualization (only when dimensions match)
 };
 
-// Per-run capture file names look like `{captureId}-{idx}-actual.png` / `...-diff.png`.
-// captureId is a UUID (so it contains hyphens) — strip the trailing `-{idx}-(actual|diff).png`
-// to recover it. Returns null for anything that isn't a capture file (e.g. a baseline).
+// Per-run capture file names look like `{captureId}-{idx}-actual.png` / `...-diff.png` /
+// `...-baseline.png` (the snapshot of the baseline that run compared against), with an optional
+// `-i{n}` iteration segment for screenshots inside a loop (e.g. `{captureId}-{idx}-i2-actual.png`).
+// captureId is a UUID (so it contains hyphens) — strip the trailing
+// `-{idx}[-i{n}]-(actual|diff|baseline).png` to recover it. Returns null for anything that isn't a
+// capture file (e.g. the live baseline at the test root).
 function captureIdOf(name: string): string | null {
-  const m = name.match(/^(.*)-\d+-(?:actual|diff)\.png$/);
+  const m = name.match(/^(.*)-\d+(?:-i\d+)?-(?:actual|diff|baseline)\.png$/);
   return m ? m[1] : null;
 }
 

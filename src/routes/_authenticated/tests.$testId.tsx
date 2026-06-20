@@ -237,8 +237,11 @@ function TestDetail() {
 
   // --- Visual-regression viewer ---
   const stepKey = (r: any, s: any) => `${r.id}:${s.sid ?? s.idx}`;
+  // Prefer the per-run baseline SNAPSHOT (the baseline this run actually compared against) so an
+  // old run shows the baseline-at-the-time; fall back to the live baseline for legacy runs.
+  const baselineFor = (s: any): string | undefined => s.baseline_snapshot_path || s.baseline_path;
   const stepImagePaths = (s: any): string[] =>
-    [s.baseline_path, s.actual_path, s.diff_path].filter(Boolean);
+    [baselineFor(s), s.actual_path, s.diff_path].filter(Boolean) as string[];
 
   const loadImages = async (r: any, s: any) => {
     const key = stepKey(r, s);
@@ -1831,7 +1834,7 @@ function TestDetail() {
                               }
                               const tiles: [string, string][] = (
                                 [
-                                  ["baseline", s.baseline_path],
+                                  ["baseline", baselineFor(s)],
                                   ["actual", s.actual_path],
                                   ["diff", s.diff_path],
                                 ] as [string, string | undefined][]
