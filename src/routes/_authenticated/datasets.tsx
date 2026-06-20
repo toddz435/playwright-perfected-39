@@ -13,9 +13,53 @@ import {
   X,
   ClipboardPaste,
   Link2,
+  RefreshCw,
+  KeyRound,
 } from "lucide-react";
 import { parseDelimited, normalizeColumn } from "@/lib/dataset";
 import { apiCall } from "@/lib/api-client";
+
+// Source providers selectable in the "Connect a source" panel. `sheet_url` is a public CSV link
+// (no token); the others are authenticated REST/JSON. Labels/placeholders/help drive the UI.
+type Provider = "sheet_url" | "airtable" | "supabase";
+const PROVIDERS: {
+  id: Provider;
+  label: string;
+  urlLabel: string;
+  urlPlaceholder: string;
+  needsToken: boolean;
+  tokenLabel?: string;
+  help: string;
+}[] = [
+  {
+    id: "sheet_url",
+    label: "Public CSV URL",
+    urlLabel: "Published CSV URL",
+    urlPlaceholder: "https://docs.google.com/…/pub?output=csv",
+    needsToken: false,
+    help: "Google Sheets: File → Share → Publish to web → CSV. Any public CSV/TSV link works.",
+  },
+  {
+    id: "airtable",
+    label: "Airtable",
+    urlLabel: "Airtable API URL",
+    urlPlaceholder: "https://api.airtable.com/v0/appXXXX/Table%20Name",
+    needsToken: true,
+    tokenLabel: "Personal access token",
+    help: "Token: airtable.com/create/tokens (scope data.records:read). URL: api.airtable.com/v0/{baseId}/{tableName}.",
+  },
+  {
+    id: "supabase",
+    label: "Supabase",
+    urlLabel: "Supabase REST URL",
+    urlPlaceholder: "https://xxxx.supabase.co/rest/v1/your_table?select=*",
+    needsToken: true,
+    tokenLabel: "API key (anon or service)",
+    help: "Key: Project → Settings → API. URL: https://{ref}.supabase.co/rest/v1/{table}?select=*.",
+  },
+];
+const isSourced = (s: string | undefined) =>
+  s === "sheet_url" || s === "airtable" || s === "supabase";
 
 export const Route = createFileRoute("/_authenticated/datasets")({
   head: () => ({ meta: [{ title: "Datasets — Testrify" }] }),
@@ -26,6 +70,7 @@ type Dataset = {
   id?: string;
   name: string;
   source: string;
+  source_url?: string | null;
   columns: string[];
   rows: Record<string, string>[];
 };
@@ -71,15 +116,21 @@ function Datasets() {
   const [editing, setEditing] = useState<Dataset | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [paste, setPaste] = useState("");
-  const [urlOpen, setUrlOpen] = useState(false);
-  const [url, setUrl] = useState("");
-  const [fetching, setFetching] = useState(false);
+  const [srcOpen, setSrcOpen] = useState(false);
+  const [srcProvider, setSrcProvider] = useState<Provider>("sheet_url");
+  const [srcUrl, setSrcUrl] = useState("");
+  const [srcToken, setSrcToken] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const refresh = async () => {
+    // Select only what the client needs. NOT source_token (the encrypted REST credential is
+    // write-only) and NOT source_url (so the page still loads if the Slice-2 migration that adds
+    // those columns hasn't been applied yet — "sourced?" is derived from the `source` column).
     const { data, error } = await db
       .from("datasets")
-      .select("*")
+      .select("id,name,source,columns,rows,created_at")
       .order("created_at", { ascending: false });
     if (error) {
       // Only the "table doesn't exist" error means the migration isn't applied; anything else
@@ -159,25 +210,65 @@ function Datasets() {
     toast.success(`Parsed ${parsed.columns.length} columns × ${parsed.rows.length} rows`);
   };
 
-  // Fetch a public CSV URL (e.g. a Google Sheet published-to-web CSV) server-side (SSRF-checked)
-  // and load it into the grid. The server returns parsed {columns, rows}.
-  const importUrl = async () => {
-    const u = url.trim();
-    if (!u) return toast.error("Paste a CSV URL first.");
-    setFetching(true);
+  // Connect the dataset to an external source (public CSV URL, or Airtable/Supabase REST): the
+  // server fetches it, encrypts any token, and SAVES the dataset — returning the fresh columns/rows.
+  const connectSource = async () => {
+    if (!editing) return;
+    const name = editing.name.trim();
+    if (!name) return toast.error("Give the dataset a name first.");
+    if (!srcUrl.trim()) return toast.error("Enter the source URL.");
+    // A blank token is only allowed when re-connecting the SAME provider's existing dataset (keep
+    // the stored token). For a new dataset, or after switching providers, demand a fresh token.
+    const p = PROVIDERS.find((x) => x.id === srcProvider)!;
+    if (p.needsToken && !srcToken.trim() && !(editing.id && editing.source === srcProvider))
+      return toast.error(`Enter the ${p.tokenLabel} for this source.`);
+    setConnecting(true);
     try {
-      const parsed = await apiCall<{ columns: string[]; rows: Record<string, string>[] }>(
-        "/api/protected/import-dataset-url",
-        { url: u },
-      );
-      patch({ columns: parsed.columns, rows: parsed.rows });
-      setUrl("");
-      setUrlOpen(false);
-      toast.success(`Imported ${parsed.columns.length} columns × ${parsed.rows.length} rows`);
+      const r = await apiCall<{
+        id: string;
+        source: string;
+        columns: string[];
+        rows: Record<string, string>[];
+      }>("/api/protected/connect-dataset-source", {
+        datasetId: editing.id,
+        name,
+        provider: srcProvider,
+        url: srcUrl.trim(),
+        token: srcToken,
+      });
+      patch({
+        id: r.id,
+        source: r.source,
+        source_url: srcUrl.trim(),
+        columns: r.columns,
+        rows: r.rows,
+      });
+      setSrcToken("");
+      setSrcOpen(false);
+      toast.success(`Connected — pulled ${r.columns.length} columns × ${r.rows.length} rows`);
+      refresh();
     } catch (e: any) {
       toast.error(e.message);
     }
-    setFetching(false);
+    setConnecting(false);
+  };
+
+  // Re-pull a source-backed dataset's rows from its stored source (token decrypted server-side).
+  const refreshSource = async () => {
+    if (!editing?.id) return;
+    setRefreshing(true);
+    try {
+      const r = await apiCall<{ columns: string[]; rows: Record<string, string>[]; rowCount: number }>(
+        "/api/protected/refresh-dataset",
+        { datasetId: editing.id },
+      );
+      patch({ columns: r.columns, rows: r.rows });
+      toast.success(`Refreshed — ${r.rowCount} rows`);
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setRefreshing(false);
   };
 
   const save = async () => {
@@ -271,9 +362,25 @@ function Datasets() {
             <Button size="sm" variant="outline" onClick={() => setPasteOpen((o) => !o)}>
               <ClipboardPaste className="h-3.5 w-3.5 mr-1" /> Paste CSV / spreadsheet
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setUrlOpen((o) => !o)}>
-              <Link2 className="h-3.5 w-3.5 mr-1" /> Import from URL
+            <Button size="sm" variant="outline" onClick={() => setSrcOpen((o) => !o)}>
+              <Link2 className="h-3.5 w-3.5 mr-1" /> Connect a source
             </Button>
+            {editing.id && isSourced(editing.source) && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={refreshing}
+                onClick={refreshSource}
+                title="Re-pull the rows from this dataset's connected source."
+              >
+                {refreshing ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                )}
+                Refresh from source
+              </Button>
+            )}
             <div className="flex-1" />
             <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
               <X className="h-3.5 w-3.5 mr-1" /> Cancel
@@ -298,31 +405,69 @@ function Datasets() {
             </div>
           )}
 
-          {urlOpen && (
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                <Input
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !fetching && importUrl()}
-                  placeholder="https://docs.google.com/…/pub?output=csv"
-                  className="bg-input/50 flex-1 min-w-[280px] font-mono text-xs"
-                />
-                <Button size="sm" variant="outline" disabled={fetching} onClick={importUrl}>
-                  {fetching ? (
-                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                  ) : (
-                    <Link2 className="h-3.5 w-3.5 mr-1" />
+          {srcOpen &&
+            (() => {
+              const p = PROVIDERS.find((x) => x.id === srcProvider)!;
+              return (
+                <div className="space-y-2 rounded-lg border border-border bg-surface/30 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={srcProvider}
+                      onChange={(e) => setSrcProvider(e.target.value as Provider)}
+                      className="bg-input/50 border border-border rounded-md px-2 py-1.5 text-xs"
+                      title="Source type"
+                    >
+                      {PROVIDERS.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Input
+                      value={srcUrl}
+                      onChange={(e) => setSrcUrl(e.target.value)}
+                      placeholder={p.urlPlaceholder}
+                      className="bg-input/50 flex-1 min-w-[260px] font-mono text-xs"
+                      aria-label={p.urlLabel}
+                    />
+                  </div>
+                  {p.needsToken && (
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <Input
+                        type="password"
+                        value={srcToken}
+                        onChange={(e) => setSrcToken(e.target.value)}
+                        placeholder={
+                          editing.id ? "Leave blank to keep the saved token" : p.tokenLabel
+                        }
+                        className="bg-input/50 flex-1 min-w-[260px] font-mono text-xs"
+                        aria-label={p.tokenLabel}
+                      />
+                    </div>
                   )}
-                  Fetch → grid
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Paste a public CSV link. For Google Sheets: <strong>File → Share → Publish to web → CSV</strong>.
-                The fetch runs server-side and only allows public addresses.
-              </p>
-            </div>
-          )}
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={connecting}
+                      onClick={connectSource}
+                    >
+                      {connecting ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      ) : (
+                        <Link2 className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      Connect &amp; save
+                    </Button>
+                    <p className="text-xs text-muted-foreground flex-1">
+                      {p.help} The fetch runs server-side; only public addresses are allowed.
+                      {p.needsToken ? " Your token is encrypted at rest." : ""}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
 
           {/* Grid */}
           {editing.columns.length === 0 ? (

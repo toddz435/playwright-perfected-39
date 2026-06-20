@@ -4,6 +4,7 @@ import {
   normalizeColumn,
   uniquifyColumns,
   suggestColumnForStep,
+  jsonToRows,
 } from "./dataset";
 
 describe("normalizeColumn", () => {
@@ -46,6 +47,67 @@ describe("suggestColumnForStep", () => {
   });
   it("falls back to a positional col<n> when there's no hint", () => {
     expect(suggestColumnForStep({ action: "fill" }, 2)).toBe("col3");
+  });
+});
+
+describe("jsonToRows", () => {
+  it("maps a bare array of objects (Supabase REST)", () => {
+    const d = jsonToRows([
+      { id: 1, email: "a@x.com" },
+      { id: 2, email: "b@y.com" },
+    ]);
+    expect(d.columns).toEqual(["id", "email"]);
+    expect(d.rows).toEqual([
+      { id: "1", email: "a@x.com" },
+      { id: "2", email: "b@y.com" },
+    ]);
+  });
+
+  it("unwraps Airtable records[].fields and normalizes field names", () => {
+    const d = jsonToRows({
+      records: [
+        { id: "rec1", fields: { "First Name": "Ada", Email: "ada@x.com" } },
+        { id: "rec2", fields: { "First Name": "Bob", Email: "bob@y.com" } },
+      ],
+    });
+    expect(d.columns).toEqual(["First_Name", "Email"]);
+    expect(d.rows[0]).toEqual({ First_Name: "Ada", Email: "ada@x.com" });
+  });
+
+  it("unions keys across rows in first-seen order (missing → '')", () => {
+    const d = jsonToRows([{ a: 1 }, { a: 2, b: 3 }]);
+    expect(d.columns).toEqual(["a", "b"]);
+    expect(d.rows).toEqual([
+      { a: "1", b: "" },
+      { a: "2", b: "3" },
+    ]);
+  });
+
+  it("finds the array inside a {data:[…]} wrapper", () => {
+    const d = jsonToRows({ data: [{ name: "x" }], meta: { count: 1 } });
+    expect(d.columns).toEqual(["name"]);
+    expect(d.rows).toEqual([{ name: "x" }]);
+  });
+
+  it("stringifies nested objects/arrays and blanks null/undefined", () => {
+    const d = jsonToRows([{ tags: ["a", "b"], addr: { city: "NYC" }, mid: null }]);
+    expect(d.rows[0]).toEqual({
+      tags: '["a","b"]',
+      addr: '{"city":"NYC"}',
+      mid: "",
+    });
+  });
+
+  it("de-dupes colliding normalized column names", () => {
+    const d = jsonToRows([{ "a b": 1, "a/b": 2 }]);
+    expect(d.columns).toEqual(["a_b", "a_b_2"]);
+  });
+
+  it("returns empty for non-tabular / empty payloads", () => {
+    expect(jsonToRows([])).toEqual({ columns: [], rows: [] });
+    expect(jsonToRows({ foo: "bar" })).toEqual({ columns: [], rows: [] });
+    expect(jsonToRows([1, 2, 3])).toEqual({ columns: [], rows: [] });
+    expect(jsonToRows(null)).toEqual({ columns: [], rows: [] });
   });
 });
 
