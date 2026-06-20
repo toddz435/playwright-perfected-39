@@ -123,15 +123,18 @@ function Dashboard() {
       )
     )
       return;
-    const testIds = tests.filter((t) => t.project_id === activeProject).map((t) => t.id);
-    // schedules have no FK to tests, so remove them explicitly; tests+runs cascade.
-    if (testIds.length) await supabase.from("schedules").delete().in("test_id", testIds);
-    const { error } = await supabase.from("projects").delete().eq("id", activeProject);
-    if (error) return toast.error(error.message);
+    // Server-side: purges each test's screenshot Storage, then removes schedules + the project
+    // (tests+runs cascade) — so nothing orphans in Storage.
+    const deletedId = activeProject;
+    try {
+      await apiCall("/api/protected/delete-project", { projectId: deletedId });
+    } catch (e: any) {
+      return toast.error(e.message);
+    }
     toast.success("Project deleted");
     // Reselect a surviving project (refresh()'s own reselect guard sees the stale
     // pre-delete activeProject in its closure, so do it explicitly here).
-    const next = projects.find((p) => p.id !== activeProject) ?? null;
+    const next = projects.find((p) => p.id !== deletedId) ?? null;
     setActiveProject(next?.id ?? null);
     refresh();
   };

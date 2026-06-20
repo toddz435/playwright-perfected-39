@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { PNG } from "pngjs";
-import { compareVisual, selectExpiredCaptures } from "./visual.server";
+import {
+  compareVisual,
+  selectExpiredCaptures,
+  storageFileNames,
+  storageObjectPaths,
+} from "./visual.server";
 
 // Builds a solid-color w×h PNG buffer.
 function solid(w: number, h: number, rgba: [number, number, number, number]): Buffer {
@@ -13,6 +18,37 @@ function solid(w: number, h: number, rgba: [number, number, number, number]): Bu
   }
   return PNG.sync.write(png);
 }
+
+describe("storageFileNames", () => {
+  it("keeps files (id set) and drops folder/prefix entries (id null)", () => {
+    const entries = [
+      { name: "sid-abc.png", id: "1" },
+      { name: "captures", id: null }, // folder prefix
+      { name: "baseline-0.png", id: "2" },
+    ];
+    expect(storageFileNames(entries)).toEqual(["sid-abc.png", "baseline-0.png"]);
+  });
+  it("handles null/undefined listings", () => {
+    expect(storageFileNames(null)).toEqual([]);
+    expect(storageFileNames(undefined)).toEqual([]);
+  });
+});
+
+describe("storageObjectPaths", () => {
+  it("prefixes baseline files at the test root and captures under captures/", () => {
+    expect(
+      storageObjectPaths(["sid-a.png", "baseline-0.png"], ["cap-1-actual.png", "cap-1-diff.png"], "u1", "t1"),
+    ).toEqual([
+      "u1/t1/sid-a.png",
+      "u1/t1/baseline-0.png",
+      "u1/t1/captures/cap-1-actual.png",
+      "u1/t1/captures/cap-1-diff.png",
+    ]);
+  });
+  it("returns nothing when a test has no objects", () => {
+    expect(storageObjectPaths([], [], "u1", "t1")).toEqual([]);
+  });
+});
 
 describe("compareVisual", () => {
   it("reports zero diff for identical images", async () => {

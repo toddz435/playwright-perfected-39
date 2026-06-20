@@ -36,6 +36,54 @@ export function selectExpiredCaptures(namesNewestFirst: string[], keepRuns: numb
   });
 }
 
+// From a Storage list() page, the names that are real files. Folder/prefix entries come back with
+// a null `id`, so they're excluded (we never want to pass a prefix to remove()).
+export function storageFileNames(
+  entries: { name: string; id?: string | null }[] | null | undefined,
+): string[] {
+  return (entries ?? []).filter((e) => e && e.id != null).map((e) => e.name);
+}
+
+// Full object paths to remove for a test: its baseline files (directly under {owner}/{testId}) and
+// its per-run capture files (under {owner}/{testId}/captures). Pure → unit-testable.
+export function storageObjectPaths(
+  rootFiles: string[],
+  captureFiles: string[],
+  owner: string,
+  testId: string,
+): string[] {
+  const base = `${owner}/${testId}`;
+  return [
+    ...rootFiles.map((n) => `${base}/${n}`),
+    ...captureFiles.map((n) => `${base}/captures/${n}`),
+  ];
+}
+
+// Remove ALL of a test's visual-regression objects (baselines + captures) from the screenshots
+// bucket, so deleting a test/project doesn't orphan images. Best-effort — callers must not let a
+// Storage hiccup block the DB delete. `bucket` is a Supabase Storage handle (storage.from(...)).
+// Returns how many objects were removed. (Retention keeps captures small, so one 1000-entry list
+// page per level is ample.)
+export async function purgeTestStorage(
+  bucket: any,
+  owner: string,
+  testId: string,
+): Promise<number> {
+  const base = `${owner}/${testId}`;
+  const [root, caps] = await Promise.all([
+    bucket.list(base, { limit: 1000 }),
+    bucket.list(`${base}/captures`, { limit: 1000 }),
+  ]);
+  const paths = storageObjectPaths(
+    storageFileNames(root?.data),
+    storageFileNames(caps?.data),
+    owner,
+    testId,
+  );
+  if (paths.length) await bucket.remove(paths);
+  return paths.length;
+}
+
 // `colorThreshold` is pixelmatch's per-pixel sensitivity (0..1). The pass/fail decision on
 // diffRatio is made by the caller.
 export async function compareVisual(

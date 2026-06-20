@@ -36,6 +36,8 @@ import { Route as ApiProtectedRefreshDatasetRouteImport } from './routes/api/pro
 import { Route as ApiProtectedRecordCodegenRouteImport } from './routes/api/protected/record-codegen'
 import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protected/harden-test'
 import { Route as ApiProtectedHardenProjectRouteImport } from './routes/api/protected/harden-project'
+import { Route as ApiProtectedDeleteTestRouteImport } from './routes/api/protected/delete-test'
+import { Route as ApiProtectedDeleteProjectRouteImport } from './routes/api/protected/delete-project'
 import { Route as ApiProtectedConnectDatasetSourceRouteImport } from './routes/api/protected/connect-dataset-source'
 import { Route as ApiProtectedAiHealSelectorRouteImport } from './routes/api/protected/ai-heal-selector'
 import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/protected/ai-generate-test'
@@ -186,6 +188,17 @@ const ApiProtectedHardenProjectRoute =
     path: '/api/protected/harden-project',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedDeleteTestRoute = ApiProtectedDeleteTestRouteImport.update({
+  id: '/api/protected/delete-test',
+  path: '/api/protected/delete-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProtectedDeleteProjectRoute =
+  ApiProtectedDeleteProjectRouteImport.update({
+    id: '/api/protected/delete-project',
+    path: '/api/protected/delete-project',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiProtectedConnectDatasetSourceRoute =
   ApiProtectedConnectDatasetSourceRouteImport.update({
     id: '/api/protected/connect-dataset-source',
@@ -256,6 +269,8 @@ export interface FileRoutesByFullPath {
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/connect-dataset-source': typeof ApiProtectedConnectDatasetSourceRoute
+  '/api/protected/delete-project': typeof ApiProtectedDeleteProjectRoute
+  '/api/protected/delete-test': typeof ApiProtectedDeleteTestRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
@@ -292,6 +307,8 @@ export interface FileRoutesByTo {
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/connect-dataset-source': typeof ApiProtectedConnectDatasetSourceRoute
+  '/api/protected/delete-project': typeof ApiProtectedDeleteProjectRoute
+  '/api/protected/delete-test': typeof ApiProtectedDeleteTestRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
@@ -330,6 +347,8 @@ export interface FileRoutesById {
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/connect-dataset-source': typeof ApiProtectedConnectDatasetSourceRoute
+  '/api/protected/delete-project': typeof ApiProtectedDeleteProjectRoute
+  '/api/protected/delete-test': typeof ApiProtectedDeleteTestRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
@@ -368,6 +387,8 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
     | '/api/protected/connect-dataset-source'
+    | '/api/protected/delete-project'
+    | '/api/protected/delete-test'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
@@ -404,6 +425,8 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
     | '/api/protected/connect-dataset-source'
+    | '/api/protected/delete-project'
+    | '/api/protected/delete-test'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
@@ -441,6 +464,8 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
     | '/api/protected/connect-dataset-source'
+    | '/api/protected/delete-project'
+    | '/api/protected/delete-test'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
     | '/api/protected/record-codegen'
@@ -470,6 +495,8 @@ export interface RootRouteChildren {
   ApiProtectedAiGenerateTestRoute: typeof ApiProtectedAiGenerateTestRoute
   ApiProtectedAiHealSelectorRoute: typeof ApiProtectedAiHealSelectorRoute
   ApiProtectedConnectDatasetSourceRoute: typeof ApiProtectedConnectDatasetSourceRoute
+  ApiProtectedDeleteProjectRoute: typeof ApiProtectedDeleteProjectRoute
+  ApiProtectedDeleteTestRoute: typeof ApiProtectedDeleteTestRoute
   ApiProtectedHardenProjectRoute: typeof ApiProtectedHardenProjectRoute
   ApiProtectedHardenTestRoute: typeof ApiProtectedHardenTestRoute
   ApiProtectedRecordCodegenRoute: typeof ApiProtectedRecordCodegenRoute
@@ -676,6 +703,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedHardenProjectRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/delete-test': {
+      id: '/api/protected/delete-test'
+      path: '/api/protected/delete-test'
+      fullPath: '/api/protected/delete-test'
+      preLoaderRoute: typeof ApiProtectedDeleteTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/delete-project': {
+      id: '/api/protected/delete-project'
+      path: '/api/protected/delete-project'
+      fullPath: '/api/protected/delete-project'
+      preLoaderRoute: typeof ApiProtectedDeleteProjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/connect-dataset-source': {
       id: '/api/protected/connect-dataset-source'
       path: '/api/protected/connect-dataset-source'
@@ -777,6 +818,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedAiGenerateTestRoute: ApiProtectedAiGenerateTestRoute,
   ApiProtectedAiHealSelectorRoute: ApiProtectedAiHealSelectorRoute,
   ApiProtectedConnectDatasetSourceRoute: ApiProtectedConnectDatasetSourceRoute,
+  ApiProtectedDeleteProjectRoute: ApiProtectedDeleteProjectRoute,
+  ApiProtectedDeleteTestRoute: ApiProtectedDeleteTestRoute,
   ApiProtectedHardenProjectRoute: ApiProtectedHardenProjectRoute,
   ApiProtectedHardenTestRoute: ApiProtectedHardenTestRoute,
   ApiProtectedRecordCodegenRoute: ApiProtectedRecordCodegenRoute,
