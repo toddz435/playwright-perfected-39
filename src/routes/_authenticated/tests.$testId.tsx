@@ -46,6 +46,7 @@ import {
   Eye,
   Globe,
   FileCode,
+  Bug,
   Image as ImageIcon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -110,6 +111,7 @@ function TestDetail() {
   // browser picker chooses the engine (chromium/firefox/webkit + chrome/edge channels).
   const [watch, setWatch] = useState(false);
   const [browser, setBrowser] = useState("chromium");
+  const [jiraBusy, setJiraBusy] = useState<string | null>(null); // runId currently being filed
   // Data-Driven Testing: the user's datasets (for the attach dropdown) + per-row run results.
   const [datasets, setDatasets] = useState<any[]>([]);
   const [datasetRunBusy, setDatasetRunBusy] = useState(false);
@@ -246,6 +248,23 @@ function TestDetail() {
       setAnalysis(null);
     }
     setAnalysisBusy(false);
+  };
+
+  // File a failed run as a Jira ticket (needs a Jira connection set up in Integrations).
+  const createJiraTicket = async (r: any) => {
+    setJiraBusy(r.id);
+    try {
+      const { key, url } = await apiCall<{ key: string; url: string }>(
+        "/api/protected/create-jira-ticket",
+        { testId, runId: r.id },
+      );
+      toast.success(`Created Jira ticket ${key}`, {
+        action: { label: "Open", onClick: () => window.open(url, "_blank", "noreferrer") },
+      });
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setJiraBusy(null);
   };
 
   // --- Visual-regression viewer ---
@@ -1815,6 +1834,20 @@ function TestDetail() {
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => analyzeRun(r)}>
                         Analyze
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={jiraBusy === r.id}
+                        onClick={() => createJiraTicket(r)}
+                        title="File this failed run as a Jira ticket (set up Jira in Integrations first)."
+                      >
+                        {jiraBusy === r.id ? (
+                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                        ) : (
+                          <Bug className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        Jira ticket
                       </Button>
                     </>
                   )}

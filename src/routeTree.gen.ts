@@ -16,6 +16,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSchedulesRouteImport } from './routes/_authenticated/schedules'
+import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
 import { Route as AuthenticatedInsightsRouteImport } from './routes/_authenticated/insights'
 import { Route as AuthenticatedDocsRouteImport } from './routes/_authenticated/docs'
 import { Route as AuthenticatedDatasetsRouteImport } from './routes/_authenticated/datasets'
@@ -29,6 +30,7 @@ import { Route as ApiProtectedSupportChatRouteImport } from './routes/api/protec
 import { Route as ApiProtectedSeedDemoRouteImport } from './routes/api/protected/seed-demo'
 import { Route as ApiProtectedScreenshotUrlRouteImport } from './routes/api/protected/screenshot-url'
 import { Route as ApiProtectedSaveVariablesRouteImport } from './routes/api/protected/save-variables'
+import { Route as ApiProtectedSaveJiraConfigRouteImport } from './routes/api/protected/save-jira-config'
 import { Route as ApiProtectedRunTestsRouteImport } from './routes/api/protected/run-tests'
 import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/run-test'
 import { Route as ApiProtectedRunDatasetRouteImport } from './routes/api/protected/run-dataset'
@@ -38,6 +40,7 @@ import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protect
 import { Route as ApiProtectedHardenProjectRouteImport } from './routes/api/protected/harden-project'
 import { Route as ApiProtectedDeleteTestRouteImport } from './routes/api/protected/delete-test'
 import { Route as ApiProtectedDeleteProjectRouteImport } from './routes/api/protected/delete-project'
+import { Route as ApiProtectedCreateJiraTicketRouteImport } from './routes/api/protected/create-jira-ticket'
 import { Route as ApiProtectedConnectDatasetSourceRouteImport } from './routes/api/protected/connect-dataset-source'
 import { Route as ApiProtectedAiHealSelectorRouteImport } from './routes/api/protected/ai-heal-selector'
 import { Route as ApiProtectedAiGenerateTestRouteImport } from './routes/api/protected/ai-generate-test'
@@ -81,6 +84,12 @@ const AuthenticatedSchedulesRoute = AuthenticatedSchedulesRouteImport.update({
   path: '/schedules',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedIntegrationsRoute =
+  AuthenticatedIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedInsightsRoute = AuthenticatedInsightsRouteImport.update({
   id: '/insights',
   path: '/insights',
@@ -150,6 +159,12 @@ const ApiProtectedSaveVariablesRoute =
     path: '/api/protected/save-variables',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedSaveJiraConfigRoute =
+  ApiProtectedSaveJiraConfigRouteImport.update({
+    id: '/api/protected/save-jira-config',
+    path: '/api/protected/save-jira-config',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiProtectedRunTestsRoute = ApiProtectedRunTestsRouteImport.update({
   id: '/api/protected/run-tests',
   path: '/api/protected/run-tests',
@@ -197,6 +212,12 @@ const ApiProtectedDeleteProjectRoute =
   ApiProtectedDeleteProjectRouteImport.update({
     id: '/api/protected/delete-project',
     path: '/api/protected/delete-project',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiProtectedCreateJiraTicketRoute =
+  ApiProtectedCreateJiraTicketRouteImport.update({
+    id: '/api/protected/create-jira-ticket',
+    path: '/api/protected/create-jira-ticket',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiProtectedConnectDatasetSourceRoute =
@@ -260,6 +281,7 @@ export interface FileRoutesByFullPath {
   '/datasets': typeof AuthenticatedDatasetsRoute
   '/docs': typeof AuthenticatedDocsRoute
   '/insights': typeof AuthenticatedInsightsRoute
+  '/integrations': typeof AuthenticatedIntegrationsRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
@@ -269,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/connect-dataset-source': typeof ApiProtectedConnectDatasetSourceRoute
+  '/api/protected/create-jira-ticket': typeof ApiProtectedCreateJiraTicketRoute
   '/api/protected/delete-project': typeof ApiProtectedDeleteProjectRoute
   '/api/protected/delete-test': typeof ApiProtectedDeleteTestRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
@@ -278,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/run-tests': typeof ApiProtectedRunTestsRoute
+  '/api/protected/save-jira-config': typeof ApiProtectedSaveJiraConfigRoute
   '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
   '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
@@ -298,6 +322,7 @@ export interface FileRoutesByTo {
   '/datasets': typeof AuthenticatedDatasetsRoute
   '/docs': typeof AuthenticatedDocsRoute
   '/insights': typeof AuthenticatedInsightsRoute
+  '/integrations': typeof AuthenticatedIntegrationsRoute
   '/schedules': typeof AuthenticatedSchedulesRoute
   '/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
@@ -307,6 +332,7 @@ export interface FileRoutesByTo {
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/connect-dataset-source': typeof ApiProtectedConnectDatasetSourceRoute
+  '/api/protected/create-jira-ticket': typeof ApiProtectedCreateJiraTicketRoute
   '/api/protected/delete-project': typeof ApiProtectedDeleteProjectRoute
   '/api/protected/delete-test': typeof ApiProtectedDeleteTestRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
@@ -316,6 +342,7 @@ export interface FileRoutesByTo {
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/run-tests': typeof ApiProtectedRunTestsRoute
+  '/api/protected/save-jira-config': typeof ApiProtectedSaveJiraConfigRoute
   '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
   '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
@@ -338,6 +365,7 @@ export interface FileRoutesById {
   '/_authenticated/datasets': typeof AuthenticatedDatasetsRoute
   '/_authenticated/docs': typeof AuthenticatedDocsRoute
   '/_authenticated/insights': typeof AuthenticatedInsightsRoute
+  '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
   '/_authenticated/schedules': typeof AuthenticatedSchedulesRoute
   '/_authenticated/tests/$testId': typeof AuthenticatedTestsTestIdRoute
   '/api/protected/advise-locators': typeof ApiProtectedAdviseLocatorsRoute
@@ -347,6 +375,7 @@ export interface FileRoutesById {
   '/api/protected/ai-generate-test': typeof ApiProtectedAiGenerateTestRoute
   '/api/protected/ai-heal-selector': typeof ApiProtectedAiHealSelectorRoute
   '/api/protected/connect-dataset-source': typeof ApiProtectedConnectDatasetSourceRoute
+  '/api/protected/create-jira-ticket': typeof ApiProtectedCreateJiraTicketRoute
   '/api/protected/delete-project': typeof ApiProtectedDeleteProjectRoute
   '/api/protected/delete-test': typeof ApiProtectedDeleteTestRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
@@ -356,6 +385,7 @@ export interface FileRoutesById {
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
   '/api/protected/run-test': typeof ApiProtectedRunTestRoute
   '/api/protected/run-tests': typeof ApiProtectedRunTestsRoute
+  '/api/protected/save-jira-config': typeof ApiProtectedSaveJiraConfigRoute
   '/api/protected/save-variables': typeof ApiProtectedSaveVariablesRoute
   '/api/protected/screenshot-url': typeof ApiProtectedScreenshotUrlRoute
   '/api/protected/seed-demo': typeof ApiProtectedSeedDemoRoute
@@ -378,6 +408,7 @@ export interface FileRouteTypes {
     | '/datasets'
     | '/docs'
     | '/insights'
+    | '/integrations'
     | '/schedules'
     | '/tests/$testId'
     | '/api/protected/advise-locators'
@@ -387,6 +418,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
     | '/api/protected/connect-dataset-source'
+    | '/api/protected/create-jira-ticket'
     | '/api/protected/delete-project'
     | '/api/protected/delete-test'
     | '/api/protected/harden-project'
@@ -396,6 +428,7 @@ export interface FileRouteTypes {
     | '/api/protected/run-dataset'
     | '/api/protected/run-test'
     | '/api/protected/run-tests'
+    | '/api/protected/save-jira-config'
     | '/api/protected/save-variables'
     | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
@@ -416,6 +449,7 @@ export interface FileRouteTypes {
     | '/datasets'
     | '/docs'
     | '/insights'
+    | '/integrations'
     | '/schedules'
     | '/tests/$testId'
     | '/api/protected/advise-locators'
@@ -425,6 +459,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
     | '/api/protected/connect-dataset-source'
+    | '/api/protected/create-jira-ticket'
     | '/api/protected/delete-project'
     | '/api/protected/delete-test'
     | '/api/protected/harden-project'
@@ -434,6 +469,7 @@ export interface FileRouteTypes {
     | '/api/protected/run-dataset'
     | '/api/protected/run-test'
     | '/api/protected/run-tests'
+    | '/api/protected/save-jira-config'
     | '/api/protected/save-variables'
     | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
@@ -455,6 +491,7 @@ export interface FileRouteTypes {
     | '/_authenticated/datasets'
     | '/_authenticated/docs'
     | '/_authenticated/insights'
+    | '/_authenticated/integrations'
     | '/_authenticated/schedules'
     | '/_authenticated/tests/$testId'
     | '/api/protected/advise-locators'
@@ -464,6 +501,7 @@ export interface FileRouteTypes {
     | '/api/protected/ai-generate-test'
     | '/api/protected/ai-heal-selector'
     | '/api/protected/connect-dataset-source'
+    | '/api/protected/create-jira-ticket'
     | '/api/protected/delete-project'
     | '/api/protected/delete-test'
     | '/api/protected/harden-project'
@@ -473,6 +511,7 @@ export interface FileRouteTypes {
     | '/api/protected/run-dataset'
     | '/api/protected/run-test'
     | '/api/protected/run-tests'
+    | '/api/protected/save-jira-config'
     | '/api/protected/save-variables'
     | '/api/protected/screenshot-url'
     | '/api/protected/seed-demo'
@@ -495,6 +534,7 @@ export interface RootRouteChildren {
   ApiProtectedAiGenerateTestRoute: typeof ApiProtectedAiGenerateTestRoute
   ApiProtectedAiHealSelectorRoute: typeof ApiProtectedAiHealSelectorRoute
   ApiProtectedConnectDatasetSourceRoute: typeof ApiProtectedConnectDatasetSourceRoute
+  ApiProtectedCreateJiraTicketRoute: typeof ApiProtectedCreateJiraTicketRoute
   ApiProtectedDeleteProjectRoute: typeof ApiProtectedDeleteProjectRoute
   ApiProtectedDeleteTestRoute: typeof ApiProtectedDeleteTestRoute
   ApiProtectedHardenProjectRoute: typeof ApiProtectedHardenProjectRoute
@@ -504,6 +544,7 @@ export interface RootRouteChildren {
   ApiProtectedRunDatasetRoute: typeof ApiProtectedRunDatasetRoute
   ApiProtectedRunTestRoute: typeof ApiProtectedRunTestRoute
   ApiProtectedRunTestsRoute: typeof ApiProtectedRunTestsRoute
+  ApiProtectedSaveJiraConfigRoute: typeof ApiProtectedSaveJiraConfigRoute
   ApiProtectedSaveVariablesRoute: typeof ApiProtectedSaveVariablesRoute
   ApiProtectedScreenshotUrlRoute: typeof ApiProtectedScreenshotUrlRoute
   ApiProtectedSeedDemoRoute: typeof ApiProtectedSeedDemoRoute
@@ -561,6 +602,13 @@ declare module '@tanstack/react-router' {
       path: '/schedules'
       fullPath: '/schedules'
       preLoaderRoute: typeof AuthenticatedSchedulesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/integrations': {
+      id: '/_authenticated/integrations'
+      path: '/integrations'
+      fullPath: '/integrations'
+      preLoaderRoute: typeof AuthenticatedIntegrationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/insights': {
@@ -654,6 +702,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedSaveVariablesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/save-jira-config': {
+      id: '/api/protected/save-jira-config'
+      path: '/api/protected/save-jira-config'
+      fullPath: '/api/protected/save-jira-config'
+      preLoaderRoute: typeof ApiProtectedSaveJiraConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/run-tests': {
       id: '/api/protected/run-tests'
       path: '/api/protected/run-tests'
@@ -715,6 +770,13 @@ declare module '@tanstack/react-router' {
       path: '/api/protected/delete-project'
       fullPath: '/api/protected/delete-project'
       preLoaderRoute: typeof ApiProtectedDeleteProjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/protected/create-jira-ticket': {
+      id: '/api/protected/create-jira-ticket'
+      path: '/api/protected/create-jira-ticket'
+      fullPath: '/api/protected/create-jira-ticket'
+      preLoaderRoute: typeof ApiProtectedCreateJiraTicketRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/protected/connect-dataset-source': {
@@ -784,6 +846,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDatasetsRoute: typeof AuthenticatedDatasetsRoute
   AuthenticatedDocsRoute: typeof AuthenticatedDocsRoute
   AuthenticatedInsightsRoute: typeof AuthenticatedInsightsRoute
+  AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
   AuthenticatedSchedulesRoute: typeof AuthenticatedSchedulesRoute
   AuthenticatedTestsTestIdRoute: typeof AuthenticatedTestsTestIdRoute
 }
@@ -796,6 +859,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDatasetsRoute: AuthenticatedDatasetsRoute,
   AuthenticatedDocsRoute: AuthenticatedDocsRoute,
   AuthenticatedInsightsRoute: AuthenticatedInsightsRoute,
+  AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
   AuthenticatedSchedulesRoute: AuthenticatedSchedulesRoute,
   AuthenticatedTestsTestIdRoute: AuthenticatedTestsTestIdRoute,
 }
@@ -818,6 +882,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedAiGenerateTestRoute: ApiProtectedAiGenerateTestRoute,
   ApiProtectedAiHealSelectorRoute: ApiProtectedAiHealSelectorRoute,
   ApiProtectedConnectDatasetSourceRoute: ApiProtectedConnectDatasetSourceRoute,
+  ApiProtectedCreateJiraTicketRoute: ApiProtectedCreateJiraTicketRoute,
   ApiProtectedDeleteProjectRoute: ApiProtectedDeleteProjectRoute,
   ApiProtectedDeleteTestRoute: ApiProtectedDeleteTestRoute,
   ApiProtectedHardenProjectRoute: ApiProtectedHardenProjectRoute,
@@ -827,6 +892,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedRunDatasetRoute: ApiProtectedRunDatasetRoute,
   ApiProtectedRunTestRoute: ApiProtectedRunTestRoute,
   ApiProtectedRunTestsRoute: ApiProtectedRunTestsRoute,
+  ApiProtectedSaveJiraConfigRoute: ApiProtectedSaveJiraConfigRoute,
   ApiProtectedSaveVariablesRoute: ApiProtectedSaveVariablesRoute,
   ApiProtectedScreenshotUrlRoute: ApiProtectedScreenshotUrlRoute,
   ApiProtectedSeedDemoRoute: ApiProtectedSeedDemoRoute,
