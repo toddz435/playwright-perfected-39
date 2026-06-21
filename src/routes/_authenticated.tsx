@@ -5,7 +5,7 @@ import { Logo } from "@/components/logo";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Activity, FlaskConical, LogOut, Loader2, Wand2, Clock, LayoutDashboard,
-  Search, ChevronDown, Plus, User as UserIcon, Command as CommandIcon, TrendingUp, BookOpen, Database,
+  Search, ChevronDown, Plus, User as UserIcon, Command as CommandIcon, TrendingUp, BookOpen, Database, Plug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -165,6 +165,10 @@ function AuthLayout() {
                 <div className="text-xs text-muted-foreground">Signed in as</div>
                 <div className="text-sm truncate">{user.email}</div>
               </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/integrations"><Plug className="h-3.5 w-3.5 mr-2" /> Integrations</Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={async () => { await supabase.auth.signOut(); nav({ to: "/login" }); }}>
                 <LogOut className="h-3.5 w-3.5 mr-2" /> Sign out
