@@ -161,12 +161,25 @@ export type HealFn = (args: {
   html: string;
 }) => Promise<string | null>;
 
+// Which browser engine to drive. chromium/firefox/webkit are the bundled, cross-platform engines
+// (webkit = Safari's engine); chrome/msedge use the real branded browser via channel (must be
+// installed on the host — fine in the cloud image, host-dependent locally).
+export type BrowserChoice = "chromium" | "firefox" | "webkit" | "chrome" | "msedge";
+export const BROWSER_CHOICES: BrowserChoice[] = [
+  "chromium",
+  "firefox",
+  "webkit",
+  "chrome",
+  "msedge",
+];
+
 export type RunOptions = {
   startIdx?: number;
   heal?: HealFn;
   stepTimeoutMs?: number;
   gotoTimeoutMs?: number;
   headless?: boolean;
+  browser?: BrowserChoice;
   // Wall-clock budget for this run, checked BETWEEN steps; if exceeded the run stops cleanly
   // with a "time budget" failure. (A single in-flight step is bounded by its own
   // per-step/goto timeout, not preempted mid-step.) Pairs with the per-step/loop caps.
@@ -189,6 +202,26 @@ export const SELECTOR_ACTIONS = new Set([
   "expect_value",
   "expect_count",
 ]);
+
+// Launch the chosen Playwright engine. Dynamic import keeps Playwright out of the (Cloudflare)
+// bundle graph. A modest slowMo on a HEADED (watched) run makes the actions actually watchable;
+// headless runs use 0 so they stay fast. chrome/msedge use the real branded browser via channel.
+async function launchBrowser(choice: BrowserChoice, headless: boolean) {
+  const { chromium, firefox, webkit } = await import("@playwright/test");
+  const base = { headless, slowMo: headless ? 0 : 500 };
+  switch (choice) {
+    case "firefox":
+      return firefox.launch(base);
+    case "webkit":
+      return webkit.launch(base);
+    case "chrome":
+      return chromium.launch({ ...base, channel: "chrome" });
+    case "msedge":
+      return chromium.launch({ ...base, channel: "msedge" });
+    default:
+      return chromium.launch(base);
+  }
+}
 
 export async function runBrowserSteps(
   steps: Step[],
@@ -216,10 +249,19 @@ export async function runBrowserSteps(
     };
   }
 
-  // Dynamic import keeps Playwright out of the (Cloudflare) bundle graph.
-  const { chromium } = await import("@playwright/test");
-
-  const browser = await chromium.launch({ headless });
+  // A launch failure (e.g. a chrome/msedge channel that isn't installed on this host) becomes a
+  // clean failed run with an actionable message rather than a raw Playwright error.
+  const choice = opts.browser ?? "chromium";
+  let browser;
+  try {
+    browser = await launchBrowser(choice, headless);
+  } catch (e: any) {
+    const branded = choice === "msedge" ? "Edge" : choice === "chrome" ? "Chrome" : null;
+    const msg = branded
+      ? `Couldn't launch ${branded} — it must be installed on the runner. Pick Chromium/Firefox/WebKit, or install ${branded}.`
+      : `Couldn't launch the ${choice} browser: ${e?.message || e}`;
+    return { status: "failed", steps: [{ idx: 0, status: "failed", action: "launch", error: msg }] };
+  }
   const context = await browser.newContext();
   const page = await context.newPage();
 

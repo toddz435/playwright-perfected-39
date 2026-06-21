@@ -2,7 +2,11 @@
 // (api/protected/run-test) and the scheduled route (api/public/run-due-schedules), so
 // their execution, assertions, healing, summary, and self-stabilization can't drift.
 // Runs on the Node server only (Playwright isn't available in the Cloudflare Worker).
-import { runBrowserSteps, DEFAULT_RUN_BUDGET_MS } from "@/lib/playwright-runner.server";
+import {
+  runBrowserSteps,
+  DEFAULT_RUN_BUDGET_MS,
+  type BrowserChoice,
+} from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
 import { interpolate, specVars, maskSecrets } from "@/lib/vars";
@@ -211,6 +215,8 @@ export async function executeTest(
     scheduled?: boolean;
     varsOverride?: Record<string, string>;
     noStabilize?: boolean;
+    headless?: boolean; // false → headed "watch" run (local runner only)
+    browser?: BrowserChoice;
   } = {},
 ): Promise<ExecuteResult> {
   const startedAt = new Date().toISOString();
@@ -310,7 +316,13 @@ export async function executeTest(
     // wall-clock / hold a run slot for budget × (retries+1).
     const runDeadline = Date.now() + DEFAULT_RUN_BUDGET_MS;
     const runOnce = () =>
-      runBrowserSteps(runSteps, { startIdx, heal, maxRunMs: Math.max(0, runDeadline - Date.now()) });
+      runBrowserSteps(runSteps, {
+        startIdx,
+        heal,
+        headless: opts.headless,
+        browser: opts.browser,
+        maxRunMs: Math.max(0, runDeadline - Date.now()),
+      });
     let result = await runOnce();
     for (let attempt = 2; result.status === "failed" && attempt <= retries + 1; attempt++) {
       attempts = attempt;
