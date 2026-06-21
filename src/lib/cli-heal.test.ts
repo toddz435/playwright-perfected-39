@@ -4,6 +4,7 @@ import {
   parsePlaywrightFailures,
   rewriteLocatorCall,
   isPlausibleLocator,
+  pageUrlForLocator,
 } from "./cli-heal";
 
 describe("locatorFromError", () => {
@@ -113,6 +114,25 @@ describe("parsePlaywrightFailures", () => {
   it("returns [] for an all-passing or empty report", () => {
     expect(parsePlaywrightFailures({ suites: [] })).toEqual([]);
     expect(parsePlaywrightFailures({})).toEqual([]);
+  });
+});
+
+describe("pageUrlForLocator", () => {
+  const src = [
+    "await page.goto('https://a.com/login');",
+    "await page.getByLabel('Email').fill('x');",
+    "await page.goto('https://a.com/dash');",
+    "await page.getByText('Welcome').click();",
+  ].join("\n");
+  it("returns the last goto BEFORE the locator's first use", () => {
+    expect(pageUrlForLocator(src, "getByLabel('Email')")).toBe("https://a.com/login");
+    expect(pageUrlForLocator(src, "getByText('Welcome')")).toBe("https://a.com/dash");
+  });
+  it("returns null for a non-literal goto (process.env / template)", () => {
+    expect(pageUrlForLocator("await page.goto(process.env.URL);\nawait page.getByText('Hi').click();", "getByText('Hi')")).toBeNull();
+  });
+  it("returns null when there's no goto before the locator", () => {
+    expect(pageUrlForLocator("await page.getByText('Hi').click();", "getByText('Hi')")).toBeNull();
   });
 });
 

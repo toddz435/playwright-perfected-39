@@ -92,6 +92,18 @@ export function parsePlaywrightFailures(report: any): SpecFailure[] {
   return out;
 }
 
+// The page URL to inspect when healing a locator (slice 3b): the last `page.goto('url')` BEFORE
+// the locator's first use in the source. Only a literal http(s) URL is returned — a goto built
+// from process.env / a template can't be resolved here, so we fall back to a blind heal.
+export function pageUrlForLocator(source: string, locatorCall: string): string | null {
+  const at = locatorCall ? source.indexOf("." + locatorCall) : -1;
+  const scope = at >= 0 ? source.slice(0, at) : source;
+  const gotos = [...scope.matchAll(/\bgoto\(\s*(['"`])([^'"`]*)\1/g)];
+  if (!gotos.length) return null;
+  const url = gotos[gotos.length - 1][2];
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
 // Replace a locator call in source — only where it appears as a `.<call>` member access (as the
 // exported code always emits `page.getBy…`/`page.locator(…)`), so a bare occurrence in a comment
 // or string isn't touched. Returns the new source + replacement count (0 → leave the file as-is).
