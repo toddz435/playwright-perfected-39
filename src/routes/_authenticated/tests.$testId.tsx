@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { locatorLabel } from "@/lib/locator";
 import { suggestColumnForStep, uniquifyColumns } from "@/lib/dataset";
+import { exportToPlaywright } from "@/lib/export-playwright";
 import {
   CONDITION_KINDS,
   URL_CONDITION_KINDS,
@@ -44,6 +45,7 @@ import {
   EyeOff,
   Eye,
   Globe,
+  FileCode,
   Image as ImageIcon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -561,6 +563,25 @@ function TestDetail() {
     refresh();
   };
 
+  // Export this test as a clean native Playwright .spec.ts file and download it (client-side).
+  const exportTs = () => {
+    const code = exportToPlaywright(test);
+    const slug =
+      String(test.name || "test")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "test";
+    const blob = new Blob([code], { type: "text/typescript" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}.spec.ts`;
+    a.click();
+    // Defer the revoke a tick — revoking synchronously after click() can cancel the download.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    toast.success("Exported Playwright .spec.ts");
+  };
+
   const deleteTest = async () => {
     if (!window.confirm(`Delete test "${test.name}" and all its runs? This cannot be undone.`))
       return;
@@ -916,6 +937,15 @@ function TestDetail() {
                   <Lightbulb className="h-4 w-4 mr-1" />
                 )}{" "}
                 data-testid advice
+              </Button>
+            )}
+            {test.type === "browser" && (
+              <Button
+                variant="outline"
+                onClick={exportTs}
+                title="Download this test as clean, native Playwright TypeScript (.spec.ts) to run in your own repo / CI."
+              >
+                <FileCode className="h-4 w-4 mr-1" /> Export TS
               </Button>
             )}
             <Button
