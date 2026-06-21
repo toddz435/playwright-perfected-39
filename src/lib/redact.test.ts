@@ -1,5 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { redactValues, redactHtml, redactSnippet } from "./redact";
+import { redactValues, redactHtml, redactSnippet, redactUrls } from "./redact";
+
+describe("redactUrls", () => {
+  it("strips query string + fragment from href/src, keeping the path", () => {
+    expect(redactUrls(`<a href="https://x.com/reset?token=abc123#t">go</a>`)).toContain(
+      'href="https://x.com/reset"',
+    );
+    expect(redactUrls(`<a href="https://x.com/reset?token=abc123">go</a>`)).not.toContain("abc123");
+    expect(redactUrls(`<img src=/pic.png?sig=secret>`)).toContain('src="/pic.png"');
+  });
+  it("empties inline data: payloads", () => {
+    expect(redactUrls(`<img src="data:image/png;base64,SECRETPAYLOAD">`)).toContain(
+      'src="data:[redacted]"',
+    );
+  });
+  it("leaves data-src and a plain path untouched", () => {
+    expect(redactUrls(`<div data-src="keep?me=1">`)).toContain('data-src="keep?me=1"');
+    expect(redactUrls(`<a href="/about">`)).toContain('href="/about"');
+  });
+});
 
 describe("redactValues", () => {
   it("redacts quoted values on any tag (input, option, web components)", () => {
@@ -27,6 +46,13 @@ describe("redactHtml", () => {
     expect(out).not.toContain("abc123");
     expect(out).not.toContain("color:red");
     expect(out).not.toContain("secret note");
+  });
+
+  it("strips a session token from an href while keeping the path", () => {
+    const out = redactHtml(`<a href="https://app.com/dl?token=SeCrEt">Download</a>`);
+    expect(out).not.toContain("SeCrEt");
+    expect(out).toContain('href="https://app.com/dl"');
+    expect(out).toContain(">Download<");
   });
 
   it("preserves structure, labels, placeholders, button text", () => {

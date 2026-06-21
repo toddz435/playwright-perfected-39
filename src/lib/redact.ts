@@ -9,14 +9,31 @@ export function redactValues(html: string): string {
   return html.replace(/(\svalue=)("[^"]*"|'[^']*'|[^\s>]+)/gi, '$1"[redacted]"');
 }
 
-// Full-document redaction: drop <script>/<style> bodies, neutralize values and textarea
-// contents. Used by the AI selector healer.
+// Strips the query string + fragment from href/src (where session tokens and one-time links
+// commonly hide) and empties inline data: payloads — keeping the PATH so structural/link locators
+// still resolve. Leading whitespace (like redactValues) avoids matching data-src/etc. by accident.
+export function redactUrls(html: string): string {
+  return html.replace(/(\s(?:href|src)=)("[^"]*"|'[^']*'|[^\s>]+)/gi, (_m, attr, raw) => {
+    const quoted = raw[0] === '"' || raw[0] === "'";
+    const q = quoted ? raw[0] : '"';
+    const url = quoted ? raw.slice(1, -1) : raw;
+    const cleaned = /^\s*data:/i.test(url) ? "data:[redacted]" : url.replace(/[?#][\s\S]*$/, "");
+    return `${attr}${q}${cleaned}${q}`;
+  });
+}
+
+// Full-document redaction: drop <script>/<style> bodies, neutralize input values and textarea
+// contents, and strip tokens from href/src. Used by the AI selector healer/hardener. NOTE: visible
+// TEXT content is intentionally preserved — the model needs it to suggest text/role locators — so a
+// page that RENDERS sensitive data as text will still include it.
 export function redactHtml(html: string): string {
   return redactValues(
-    html
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "<script></script>")
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "<style></style>")
-      .replace(/(<textarea\b[^>]*>)[\s\S]*?(<\/textarea>)/gi, "$1[redacted]$2"),
+    redactUrls(
+      html
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "<script></script>")
+        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "<style></style>")
+        .replace(/(<textarea\b[^>]*>)[\s\S]*?(<\/textarea>)/gi, "$1[redacted]$2"),
+    ),
   );
 }
 
