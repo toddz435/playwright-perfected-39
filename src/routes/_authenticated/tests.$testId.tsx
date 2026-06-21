@@ -42,6 +42,8 @@ import {
   X,
   Braces,
   EyeOff,
+  Eye,
+  Globe,
   Image as ImageIcon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -102,6 +104,10 @@ function TestDetail() {
   const [imgState, setImgState] = useState<
     Record<string, { busy?: boolean; updating?: boolean; urls?: Record<string, string> }>
   >({});
+  // Run options: "watch" opens a headed browser so you can see the run (local runner only); the
+  // browser picker chooses the engine (chromium/firefox/webkit + chrome/edge channels).
+  const [watch, setWatch] = useState(false);
+  const [browser, setBrowser] = useState("chromium");
   // Data-Driven Testing: the user's datasets (for the attach dropdown) + per-row run results.
   const [datasets, setDatasets] = useState<any[]>([]);
   const [datasetRunBusy, setDatasetRunBusy] = useState(false);
@@ -206,7 +212,12 @@ function TestDetail() {
   const run = async (resumeFromStep?: number) => {
     setRunning(true);
     try {
-      const { run } = await apiCall<any>("/api/protected/run-test", { testId, resumeFromStep });
+      const { run } = await apiCall<any>("/api/protected/run-test", {
+        testId,
+        resumeFromStep,
+        watch: test.type === "browser" ? watch : undefined,
+        browser: test.type === "browser" ? browser : undefined,
+      });
       toast[run.status === "passed" ? "success" : "error"](`Run ${run.status}`);
       refresh();
       if (run.status === "failed") analyzeRun(run);
@@ -779,6 +790,36 @@ function TestDetail() {
                 <Wand2 className="h-3.5 w-3.5" />
                 AI auto-heal
                 <Switch checked={test.spec?.aiHealing !== false} onCheckedChange={toggleHealing} />
+              </label>
+            )}
+            {test.type === "browser" && (
+              <label
+                className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
+                title="Open a real, visible browser and slow the actions so you can watch the run happen. Local runner only — a cloud run stays headless (use the recorded video/trace there)."
+              >
+                {watch ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                Watch
+                <Switch checked={watch} onCheckedChange={setWatch} />
+              </label>
+            )}
+            {test.type === "browser" && (
+              <label
+                className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
+                title="Browser engine to run on. Chromium/Firefox/WebKit are bundled & cross-platform (WebKit = Safari's engine). Chrome/Edge use the real installed browser (must be present on the host)."
+              >
+                <Globe className="h-3.5 w-3.5" />
+                Browser
+                <select
+                  value={browser}
+                  onChange={(e) => setBrowser(e.target.value)}
+                  className="bg-input/50 border border-border rounded-md px-2 py-1 text-xs"
+                >
+                  <option value="chromium">Chromium</option>
+                  <option value="chrome">Chrome</option>
+                  <option value="msedge">Edge</option>
+                  <option value="firefox">Firefox</option>
+                  <option value="webkit">WebKit (Safari)</option>
+                </select>
               </label>
             )}
             {test.type === "browser" && (
