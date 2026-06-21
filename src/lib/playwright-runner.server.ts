@@ -203,6 +203,10 @@ export const SELECTOR_ACTIONS = new Set([
   "expect_count",
 ]);
 
+// How long a watched (headed) run pauses on the final page before closing the browser, so the
+// user can see the end state. Headed-only — headless runs don't wait.
+const WATCH_LINGER_MS = 3500;
+
 // Launch the chosen Playwright engine. Dynamic import keeps Playwright out of the (Cloudflare)
 // bundle graph. A modest slowMo on a HEADED (watched) run makes the actions actually watchable;
 // headless runs use 0 so they stay fast. chrome/msedge use the real branded browser via channel.
@@ -746,6 +750,9 @@ export async function runBrowserSteps(
       break;
     }
   } finally {
+    // In a watched (headed) run, linger on the final page for a moment so the user can SEE the
+    // end state before the window closes. Headless runs close immediately (nothing to watch).
+    if (!headless) await new Promise((r) => setTimeout(r, WATCH_LINGER_MS));
     await browser.close().catch(() => {});
   }
 
