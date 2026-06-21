@@ -6,10 +6,12 @@ Run your exported Playwright tests locally and let Claude repair broken locators
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-…        # your own key (healing runs locally, on your machine)
-npx tsx cli/testrify.ts heal path/to/login.spec.ts
-# or, after `npm install`:
 npm run heal -- path/to/login.spec.ts
+# equivalently:
+npx tsx cli/testrify.ts heal path/to/login.spec.ts
 ```
+
+No install step needed — both commands use `npx tsx`, which fetches `tsx` on first run.
 
 What it does:
 
@@ -24,4 +26,4 @@ What it does:
 - **What's sent to Anthropic:** the failing locator expression + the Playwright error text (which may include expected/received values) — to your own Anthropic account. The page HTML is *not* sent in v1.
 - The pure parsing/rewriting logic lives in [`src/lib/cli-heal.ts`](../src/lib/cli-heal.ts) and is unit-tested in CI.
 - **v1 heals from the locator + error text.** HTML-grounded healing (sharper fixes from the live DOM at the failure point) is the planned next slice.
-- `npx tsx …` fetches `tsx` on first run; adding it to `devDependencies` (and `npm install`) makes `npm run heal` work offline.
+- `tsx` is also listed in `devDependencies`, so after a `npm install`/`bun install` it runs from the local copy (faster, offline) — but it's not required.
