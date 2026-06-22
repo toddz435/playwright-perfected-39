@@ -3,6 +3,7 @@ import { requireUser, json } from "@/lib/server-auth.server";
 import { createClient } from "@supabase/supabase-js";
 import { executeTest } from "@/lib/test-runner.server";
 import { acquireSlot, ConcurrencyError, RUN_LIMITS, mapPool } from "@/lib/concurrency.server";
+import { quotaBlock } from "@/lib/quota.server";
 
 // Runs every browser test in a project IN PARALLEL, bounded to the per-user run cap so it
 // can't exceed the runner's concurrency limits. Each test still acquires a run slot; if the
@@ -29,6 +30,11 @@ export const Route = createFileRoute("/api/protected/run-tests")({
             .eq("project_id", projectId)
             .eq("type", "browser");
           if (tErr) return json({ error: tErr.message }, { status: 500 });
+
+          // Monthly run quota (freemium). No-op while QUOTA_ENFORCED is off.
+          const quota = await quotaBlock(sb);
+          if (quota) return json({ error: quota }, { status: 429 });
+
           if (!tests || tests.length === 0)
             return json({ error: "No browser tests in this project" }, { status: 400 });
 

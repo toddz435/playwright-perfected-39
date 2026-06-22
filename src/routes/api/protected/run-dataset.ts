@@ -3,6 +3,7 @@ import { requireUser, json } from "@/lib/server-auth.server";
 import { createClient } from "@supabase/supabase-js";
 import { executeTest } from "@/lib/test-runner.server";
 import { acquireSlot, ConcurrencyError, RUN_LIMITS, mapPool } from "@/lib/concurrency.server";
+import { quotaBlock } from "@/lib/quota.server";
 
 // Data-Driven Testing: runs a test once per row of its attached dataset (spec.datasetId),
 // binding each row's columns to the test's {{variables}}. Runs in parallel bounded by the
@@ -41,6 +42,11 @@ export const Route = createFileRoute("/api/protected/run-dataset")({
           const columns: string[] = dataset.columns || [];
           const rows: Record<string, any>[] = Array.isArray(dataset.rows) ? dataset.rows : [];
           if (!rows.length) return json({ error: "The dataset has no rows" }, { status: 400 });
+
+          // Monthly run quota (freemium). No-op while QUOTA_ENFORCED is off. (A dataset run counts
+          // each row as a run, so this gates the whole batch when the caller is already over.)
+          const quota = await quotaBlock(sb);
+          if (quota) return json({ error: quota }, { status: 429 });
 
           const labelOf = (row: Record<string, any>, i: number) =>
             columns

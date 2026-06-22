@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { executeTest } from "@/lib/test-runner.server";
 import { acquireSlot, ConcurrencyError, RUN_LIMITS } from "@/lib/concurrency.server";
 import { BROWSER_CHOICES, type BrowserChoice } from "@/lib/playwright-runner.server";
+import { quotaBlock } from "@/lib/quota.server";
 
 export const Route = createFileRoute("/api/protected/run-test")({
   server: {
@@ -32,6 +33,10 @@ export const Route = createFileRoute("/api/protected/run-test")({
             .eq("id", testId)
             .single();
           if (tErr || !test) return json({ error: "Test not found" }, { status: 404 });
+
+          // Monthly run quota (freemium). No-op while QUOTA_ENFORCED is off (meter + display only).
+          const quota = await quotaBlock(sb);
+          if (quota) return json({ error: quota }, { status: 429 });
 
           // Cap concurrent runs per user (and across the runner) so a user can't spawn
           // unbounded browsers. Throws ConcurrencyError (→ 429) when over the limit.
