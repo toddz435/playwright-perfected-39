@@ -11,6 +11,9 @@ import {
   FileSpreadsheet,
   Link2,
   Sparkles,
+  Globe,
+  FileCode,
+  Plug,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -82,6 +85,35 @@ const SECTIONS: Section[] = [
       "Insights surfaces flaky hotspots and pass/fail trends across recent runs.",
     ],
   },
+  {
+    icon: Globe,
+    title: "Watch & cross-browser",
+    blurb: "See it run, on the engine your users actually use.",
+    items: [
+      "“Watch” opens a real browser and runs in slow-motion so you can see every step (local runner).",
+      "Pick the engine: Chromium, Firefox, or WebKit (Safari) — plus real Chrome / Edge where installed.",
+      "Headless and fast by default; flip Watch on per run when you want eyes on it.",
+    ],
+  },
+  {
+    icon: FileCode,
+    title: "Export & local CLI",
+    blurb: "Take your tests with you — no lock-in.",
+    items: [
+      "Export any test to clean, human-readable native Playwright TypeScript (.spec.ts).",
+      "Run the testrify CLI to auto-heal broken locators on your machine, so you push code that already passes CI.",
+      "Secret values export as process.env references — never baked into the file.",
+    ],
+  },
+  {
+    icon: Plug,
+    title: "Integrations",
+    blurb: "Wire Testrify into the tools your team already uses.",
+    items: [
+      "File a failed run straight into Jira as a ticket — summary, error, and steps prefilled.",
+      "Your Jira API token is encrypted at rest and never sent to the browser.",
+    ],
+  },
 ];
 
 const DDT_SOURCES = [
@@ -140,14 +172,16 @@ function Docs() {
         <h2 className="font-semibold text-xl flex items-center gap-2">
           <Database className="h-5 w-5 text-primary-glow" /> Data-Driven Testing
           <Badge variant="outline" className="border-primary/40 text-primary-glow gap-1">
-            <Sparkles className="h-3 w-3" /> Coming soon
+            <Sparkles className="h-3 w-3" /> Live
           </Badge>
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
           Drive one test across many rows of data — from a <strong>spreadsheet</strong> or a{" "}
           <strong>database</strong>, your choice. Each row’s columns bind to your{" "}
           <code className="text-xs">{"{{variables}}"}</code>, and Testrify runs the test once per
-          row in parallel.
+          row in parallel. The <strong>Data-drive wizard</strong> turns a recorded test’s values
+          into <code className="text-xs">{"{{columns}}"}</code> in one click, and you can refresh
+          the rows from the source anytime.
         </p>
         <div className="mt-4 grid gap-3">
           {DDT_SOURCES.map((src) => (
