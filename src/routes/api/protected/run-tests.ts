@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { executeTest } from "@/lib/test-runner.server";
 import { acquireSlot, ConcurrencyError, RUN_LIMITS, mapPool } from "@/lib/concurrency.server";
 import { quotaBlock } from "@/lib/quota.server";
+import { runnerConfigured } from "@/lib/runner-client.server";
 
 // Runs every browser test in a project IN PARALLEL, bounded to the per-user run cap so it
 // can't exceed the runner's concurrency limits. Each test still acquires a run slot; if the
@@ -16,6 +17,15 @@ export const Route = createFileRoute("/api/protected/run-tests")({
           const { userId, token } = await requireUser(request);
           const { projectId } = await request.json();
           if (!projectId) return json({ error: "projectId required" }, { status: 400 });
+
+          // Cloud: "Run all" isn't wired to the Railway runner yet — fail clean rather than hit
+          // the Worker's Playwright stub. (Single Run already works in the cloud.)
+          if (runnerConfigured()) {
+            return json(
+              { error: "Run-all isn't available in the cloud yet — use single Run, or run locally." },
+              { status: 501 },
+            );
+          }
 
           const SUPABASE_URL = process.env.SUPABASE_URL!;
           const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY!;
