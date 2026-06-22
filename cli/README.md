@@ -13,6 +13,8 @@ npx tsx cli/testrify.ts heal path/to/login.spec.ts
 
 No install step needed — both commands use `npx tsx`, which fetches `tsx` on first run.
 
+To get a global `testrify` command, run `npm link` once in the repo, then `testrify heal <spec.ts>` from anywhere. (A standalone published npm package — bundled, no repo needed — comes with distribution.)
+
 What it does:
 
 1. Runs the spec with Playwright (`playwright test <file> --reporter=json`).

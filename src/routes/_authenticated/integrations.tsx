@@ -22,16 +22,25 @@ function Integrations() {
   const [baseUrl, setBaseUrl] = useState("");
   const [email, setEmail] = useState("");
   const [projectKey, setProjectKey] = useState("");
+  const [issueType, setIssueType] = useState("Bug");
   const [token, setToken] = useState(""); // write-only: never loaded
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
       // Never select `token` (the encrypted credential is write-only).
-      const { data, error } = await db
+      let { data, error } = await db
         .from("jira_config")
-        .select("base_url,email,project_key")
+        .select("base_url,email,project_key,issue_type")
         .maybeSingle();
+      // Resilience: if the issue_type column migration isn't applied yet, retry without it so the
+      // page still works (issue type just defaults to "Bug" until the migration lands).
+      if (error && /issue_type|column/i.test(error.message || "")) {
+        ({ data, error } = await db
+          .from("jira_config")
+          .select("base_url,email,project_key")
+          .maybeSingle());
+      }
       if (error) {
         const missing =
           (error as any).code === "42P01" || /does not exist|relation/i.test(error.message || "");
@@ -41,6 +50,7 @@ function Integrations() {
         setBaseUrl(data.base_url || "");
         setEmail(data.email || "");
         setProjectKey(data.project_key || "");
+        setIssueType(data.issue_type || "Bug");
         setConnected(true);
       }
       setLoading(false);
@@ -57,6 +67,7 @@ function Integrations() {
         baseUrl: baseUrl.trim(),
         email: email.trim(),
         projectKey: projectKey.trim(),
+        issueType: issueType.trim() || "Bug",
         token, // blank keeps the stored token
       });
       toast.success("Jira connection saved");
@@ -120,15 +131,26 @@ function Integrations() {
                 className="bg-input/50 text-sm"
               />
             </label>
-            <label className="block">
-              <span className="text-xs text-muted-foreground">Project key</span>
-              <Input
-                value={projectKey}
-                onChange={(e) => setProjectKey(e.target.value)}
-                placeholder="BUG"
-                className="bg-input/50 font-mono text-sm max-w-[160px]"
-              />
-            </label>
+            <div className="flex gap-3 flex-wrap">
+              <label className="block">
+                <span className="text-xs text-muted-foreground">Project key</span>
+                <Input
+                  value={projectKey}
+                  onChange={(e) => setProjectKey(e.target.value)}
+                  placeholder="BUG"
+                  className="bg-input/50 font-mono text-sm max-w-[160px]"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs text-muted-foreground">Issue type</span>
+                <Input
+                  value={issueType}
+                  onChange={(e) => setIssueType(e.target.value)}
+                  placeholder="Bug"
+                  className="bg-input/50 text-sm max-w-[160px]"
+                />
+              </label>
+            </div>
             <label className="block">
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <KeyRound className="h-3 w-3" /> API token
