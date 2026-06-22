@@ -81,7 +81,7 @@ const SECTIONS: Section[] = [
     title: "Scheduling & insights",
     blurb: "Run unattended and learn from the results.",
     items: [
-      "Schedule a test on 24-hour-time, day-of-week cron.",
+      "Schedule a test on a 24 hour-time, day-of-week basis.",
       "Insights surfaces flaky hotspots and pass/fail trends across recent runs.",
     ],
   },
