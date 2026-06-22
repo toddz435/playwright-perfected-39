@@ -1,7 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tanstack-start-app",
+  "name": "testrify",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server.ts",
+  // Playwright + image-diff libs are Node-only and run ONLY on the runner, never in the Worker.
+  // They're reached solely via dynamic import in test-execution paths; alias them to a throwing
+  // stub so the Worker bundle builds without pulling in browser binaries (chromium-bidi, etc.).
+  "alias": {
+    "@playwright/test": "./src/lib/worker-browser-stub.ts",
+    "playwright": "./src/lib/worker-browser-stub.ts",
+    "playwright-core": "./src/lib/worker-browser-stub.ts",
+    "pngjs": "./src/lib/worker-browser-stub.ts",
+    "pixelmatch": "./src/lib/worker-browser-stub.ts",
+  },
 }
