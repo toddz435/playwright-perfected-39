@@ -10,6 +10,7 @@ import {
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
 import { interpolate, specVars, maskSecrets } from "@/lib/vars";
+import { jsonPathValue } from "@/lib/json-path";
 import { decryptSecret } from "@/lib/secrets.server";
 import { assertPublicUrl } from "@/lib/ssrf.server";
 
@@ -191,8 +192,7 @@ function checkAssertions(assertions: any[], res: Response, text: string, elapsed
         actual = pass ? "present" : "absent";
       } else if (a.kind === "json_path_eq") {
         const [path, expected] = String(a.expected).split("::");
-        const j = JSON.parse(text);
-        const v = path.split(".").reduce((o: any, k: string) => o?.[k], j);
+        const v = jsonPathValue(JSON.parse(text), path);
         pass = String(v) === expected;
         actual = String(v);
       }

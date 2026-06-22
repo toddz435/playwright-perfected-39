@@ -41,7 +41,7 @@ ${input}`,
                             type: "object",
                             properties: {
                               kind: { type: "string", enum: ["status_eq","status_lt","time_lt_ms","body_contains","json_path_eq","header_present"] },
-                              expected: { type: "string", description: "Expected value as string. For json_path_eq use 'path::value'." },
+                              expected: { type: "string", description: "Expected value as string. For json_path_eq use 'path::value' where path is dot-notation from the response root WITHOUT a leading $ (e.g. 'id::1', 'data.0.name::Ada')." },
                               human: { type: "string", description: "Plain-English description grandma can read" },
                             },
                             required: ["kind","expected","human"],
