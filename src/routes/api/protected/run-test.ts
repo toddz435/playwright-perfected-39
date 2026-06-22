@@ -5,6 +5,7 @@ import { executeTest } from "@/lib/test-runner.server";
 import { acquireSlot, ConcurrencyError, RUN_LIMITS } from "@/lib/concurrency.server";
 import { BROWSER_CHOICES, type BrowserChoice } from "@/lib/playwright-runner.server";
 import { quotaBlock } from "@/lib/quota.server";
+import { runnerConfigured, delegateRun } from "@/lib/runner-client.server";
 
 export const Route = createFileRoute("/api/protected/run-test")({
   server: {
@@ -14,8 +15,17 @@ export const Route = createFileRoute("/api/protected/run-test")({
           const { userId, token } = await requireUser(request);
           const { testId, resumeFromStep, watch, browser } = await request.json();
           if (!testId) return json({ error: "testId required" }, { status: 400 });
-          // `watch` = headed run so the user can see the browser (local runner only). `browser`
-          // picks the engine; ignore an unknown value rather than failing the run.
+
+          // Cloud: hand execution to the Railway runner (the Worker can't run Playwright). The
+          // runner re-validates the user token, enforces quota + concurrency, and runs headless.
+          // `watch`/`browser` are local-only (headed needs a display), so they're dropped here.
+          if (runnerConfigured()) {
+            return await delegateRun(token, { testId, opts: { resumeFromStep } });
+          }
+
+          // Local dev (no RUNNER_URL): run in-process on the Node server, where Playwright works.
+          // `watch` = headed run so the user can see the browser. `browser` picks the engine;
+          // ignore an unknown value rather than failing the run.
           const browserChoice: BrowserChoice | undefined = BROWSER_CHOICES.includes(browser)
             ? browser
             : undefined;

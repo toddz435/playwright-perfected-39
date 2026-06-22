@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { executeTest } from "@/lib/test-runner.server";
 import { acquireSlot, ConcurrencyError, RUN_LIMITS, mapPool } from "@/lib/concurrency.server";
 import { quotaBlock } from "@/lib/quota.server";
+import { runnerConfigured } from "@/lib/runner-client.server";
 
 // Data-Driven Testing: runs a test once per row of its attached dataset (spec.datasetId),
 // binding each row's columns to the test's {{variables}}. Runs in parallel bounded by the
@@ -16,6 +17,15 @@ export const Route = createFileRoute("/api/protected/run-dataset")({
           const { userId, token } = await requireUser(request);
           const { testId } = await request.json();
           if (!testId) return json({ error: "testId required" }, { status: 400 });
+
+          // Cloud: dataset (run-per-row) isn't wired to the Railway runner yet — fail clean rather
+          // than hit the Worker's Playwright stub. (Single Run already works in the cloud.)
+          if (runnerConfigured()) {
+            return json(
+              { error: "Dataset runs aren't available in the cloud yet — use single Run, or run locally." },
+              { status: 501 },
+            );
+          }
 
           const SUPABASE_URL = process.env.SUPABASE_URL!;
           const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY!;

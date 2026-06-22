@@ -14,6 +14,12 @@ import {
   URL_CONDITION_KINDS,
 } from "@/lib/conditions";
 import { validateBlocks, isBlockMarker, loopBounds } from "@/lib/blocks";
+import { assertPublicUrl } from "@/lib/ssrf.server";
+
+// SSRF guard for browser navigation: refuse goto targets that resolve to private/internal/
+// metadata addresses (e.g. 169.254.169.254). Critical now that the runner is internet-reachable
+// in the cloud. ALLOW_PRIVATE_HOSTS=true (local dev) permits localhost so users can test local apps.
+const ALLOW_PRIVATE_HOSTS = process.env.ALLOW_PRIVATE_HOSTS === "true";
 
 export type Step = {
   action: string;
@@ -574,6 +580,10 @@ export async function runBrowserSteps(
       // Non-selector actions: navigation and URL assertions (not healable).
       if (s.action === "goto") {
         try {
+          // SSRF: refuse navigation to private/internal/metadata hosts (cloud runner is
+          // internet-reachable). Throws → recorded as a failed step below. The target is already
+          // {{var}}-interpolated here, so runtime-injected URLs are checked too.
+          await assertPublicUrl(s.target ?? "", ALLOW_PRIVATE_HOSTS);
           await page.goto(s.target ?? "", { waitUntil: "domcontentloaded", timeout: gotoTimeout });
           rec({
             idx: i,
