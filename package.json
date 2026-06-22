@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "heal": "npx tsx cli/testrify.ts heal"
+    "heal": "npx tsx cli/testrify.ts heal",
+    "scheduler": "node --env-file-if-exists=.env scripts/scheduler.mjs"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",

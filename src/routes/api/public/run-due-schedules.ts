@@ -1,13 +1,34 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isDue } from "@/lib/cron";
 import { executeTest } from "@/lib/test-runner.server";
 import { acquireSlot, RUN_LIMITS } from "@/lib/concurrency.server";
 
+// Constant-time secret comparison (avoids leaking the secret via response timing).
+function secretMatches(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+const json = (body: unknown, status: number) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
 export const Route = createFileRoute("/api/public/run-due-schedules")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        // This endpoint runs scheduled tests with ADMIN (service-role) privileges, so it must only
+        // be callable by the cron. Require a shared CRON_SECRET (header `x-cron-secret` or a Bearer
+        // token). FAIL CLOSED: if CRON_SECRET isn't configured, refuse — never an open admin trigger.
+        const expected = process.env.CRON_SECRET;
+        if (!expected) return json({ error: "Scheduling not configured (CRON_SECRET unset)." }, 503);
+        const provided =
+          request.headers.get("x-cron-secret") ||
+          (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+        if (!secretMatches(provided, expected)) return json({ error: "Unauthorized" }, 401);
+
         try {
           const now = new Date();
           const { data: schedules, error } = await supabaseAdmin
