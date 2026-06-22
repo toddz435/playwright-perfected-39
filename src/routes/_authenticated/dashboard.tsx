@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { apiCall } from "@/lib/api-client";
+import { quotaStatus, monthStartISO } from "@/lib/quota";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,6 +62,8 @@ function Dashboard() {
   const [seedBusy, setSeedBusy] = useState(false);
   const [hardenBusy, setHardenBusy] = useState(false);
   const [runAllBusy, setRunAllBusy] = useState(false);
+  // Freemium usage: this user's run count this calendar month + their plan (RLS-scoped).
+  const [usage, setUsage] = useState<{ used: number; plan: string } | null>(null);
 
   const seedDemo = async () => {
     setSeedBusy(true);
@@ -173,6 +176,18 @@ function Dashboard() {
     loadRuns(activeProject);
   }, [activeProject]); // eslint-disable-line
 
+  // Account-wide usage for the freemium meter: count this user's runs this month + read their plan.
+  useEffect(() => {
+    (async () => {
+      const { count } = await supabase
+        .from("runs")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", monthStartISO(new Date()));
+      const { data: prof } = await supabase.from("profiles").select("plan").maybeSingle();
+      setUsage({ used: count ?? 0, plan: (prof as any)?.plan ?? "free" });
+    })();
+  }, []); // eslint-disable-line
+
   const createProject = async () => {
     if (!pName.trim()) return toast.error("Project name is required");
     if (!user?.id) return toast.error("Not signed in yet — please wait a moment and try again");
@@ -272,6 +287,25 @@ function Dashboard() {
           <p className="text-muted-foreground text-sm mt-1">
             Author resilient tests with AI. Resume from any failed step.
           </p>
+          {usage &&
+            (() => {
+              const q = quotaStatus(usage.used, usage.plan);
+              return (
+                <p className="text-xs mt-2">
+                  <span className="text-muted-foreground">Runs this month: </span>
+                  {q.unlimited ? (
+                    <span className="font-medium">
+                      {q.used} · Unlimited <span className="text-primary-glow">(Pro)</span>
+                    </span>
+                  ) : (
+                    <span className={q.over ? "text-destructive font-medium" : "font-medium"}>
+                      {q.used} / {q.limit}
+                      {q.over ? " · over your free limit" : ` · ${q.remaining} left`}
+                    </span>
+                  )}
+                </p>
+              );
+            })()}
         </div>
         <div className="flex gap-2">
           {activeProject && projectTests.some((t) => t.type === "browser") && (
