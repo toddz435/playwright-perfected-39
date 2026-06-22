@@ -15,6 +15,7 @@ export const Route = createFileRoute("/api/protected/save-jira-config")({
           const baseUrl = String(body?.baseUrl ?? "").trim().replace(/\/+$/, "");
           const email = String(body?.email ?? "").trim();
           const projectKey = String(body?.projectKey ?? "").trim();
+          const issueType = String(body?.issueType ?? "").trim() || "Bug";
           const secret = typeof body?.token === "string" ? body.token.trim() : "";
 
           if (!baseUrl || !email || !projectKey)
@@ -50,9 +51,14 @@ export const Route = createFileRoute("/api/protected/save-jira-config")({
             if (!storedToken) return json({ error: "Enter your Jira API token." }, { status: 400 });
           }
 
-          const { error } = await sb
-            .from("jira_config")
-            .upsert({ owner_id: userId, base_url: baseUrl, email, project_key: projectKey, token: storedToken });
+          const { error } = await sb.from("jira_config").upsert({
+            owner_id: userId,
+            base_url: baseUrl,
+            email,
+            project_key: projectKey,
+            issue_type: issueType,
+            token: storedToken,
+          });
           if (error) return json({ error: error.message }, { status: 400 });
 
           return json({ ok: true });

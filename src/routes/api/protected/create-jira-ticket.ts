@@ -69,7 +69,7 @@ export const Route = createFileRoute("/api/protected/create-jira-ticket")({
                 projectKey: cfg.project_key,
                 token: tokenPlain,
               },
-              ticket,
+              { ...ticket, issueType: cfg.issue_type || "Bug" },
             );
             return json(issue);
           } catch (e: any) {
