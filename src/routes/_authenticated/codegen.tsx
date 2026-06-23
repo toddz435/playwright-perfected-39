@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { apiCall } from "@/lib/api-client";
+import { redactSensitiveFills } from "@/lib/sensitive";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -96,6 +97,18 @@ function Codegen() {
     }
     if (!targetProjectId) return toast.error("Pick or create a project.");
 
+    // Never persist recorded passwords: rewrite sensitive fills to {{secret}} refs (literal dropped)
+    // and register them as empty secret variables for the user to fill in the Variables editor.
+    const { steps, secretNames } = redactSensitiveFills(result.steps || []);
+    const spec: any = { ...result, name: testName.trim(), steps };
+    if (secretNames.length) {
+      spec.secrets = [...new Set([...(result.secrets || []), ...secretNames])];
+      spec.variables = {
+        ...(result.variables || {}),
+        ...Object.fromEntries(secretNames.map((n: string) => [n, ""])),
+      };
+    }
+
     const { data, error } = await supabase
       .from("tests")
       .insert({
@@ -104,7 +117,7 @@ function Codegen() {
         name: testName.trim(),
         description: result.description,
         type: "browser",
-        spec: { ...result, name: testName.trim() },
+        spec,
       })
       .select()
       .single();
@@ -113,7 +126,11 @@ function Codegen() {
       if (createdProjectId) await supabase.from("projects").delete().eq("id", createdProjectId);
       return toast.error(error.message);
     }
-    toast.success("Test saved");
+    toast.success(
+      secretNames.length
+        ? `Test saved — ${secretNames.length} sensitive field(s) became secrets; set their values in Variables.`
+        : "Test saved",
+    );
     nav({ to: "/tests/$testId", params: { testId: data.id } });
   };
 
