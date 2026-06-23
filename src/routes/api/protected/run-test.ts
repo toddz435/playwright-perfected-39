@@ -18,9 +18,11 @@ export const Route = createFileRoute("/api/protected/run-test")({
 
           // Cloud: hand execution to the Railway runner (the Worker can't run Playwright). The
           // runner re-validates the user token, enforces quota + concurrency, and runs headless.
-          // `watch`/`browser` are local-only (headed needs a display), so they're dropped here.
+          // `browser` IS forwarded — the cloud runner supports chromium/firefox/webkit (the bundled
+          // engines); chrome/msedge channels aren't installed there and fail with a clear message.
+          // `watch` is local-only (headed needs a display), so it's dropped.
           if (runnerConfigured()) {
-            return await delegateRun(token, { testId, opts: { resumeFromStep } });
+            return await delegateRun(token, { testId, opts: { resumeFromStep, browser } });
           }
 
           // Local dev (no RUNNER_URL): run in-process on the Node server, where Playwright works.

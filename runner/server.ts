@@ -17,6 +17,7 @@ import { createClient } from "@supabase/supabase-js";
 import { executeTest } from "@/lib/test-runner.server";
 import { acquireSlot, ConcurrencyError, RUN_LIMITS } from "@/lib/concurrency.server";
 import { quotaBlock } from "@/lib/quota.server";
+import { CLOUD_BROWSER_CHOICES, type BrowserChoice } from "@/lib/playwright-runner.server";
 
 const PORT = Number(process.env.PORT) || 8080;
 const RUNNER_SECRET = process.env.RUNNER_SECRET || "";
@@ -85,6 +86,19 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     const quota = await quotaBlock(sb);
     if (quota) return send(res, 429, { error: quota });
 
+    // Engine: the cloud image bundles chromium/firefox/webkit only. Reject chrome/msedge (real
+    // branded channels, not installed here) up-front — a clear message instead of burning a
+    // concurrency slot + quota tick to fail late inside launchBrowser. Unknown/absent → default.
+    const requestedBrowser = opts.browser as BrowserChoice | undefined;
+    if (requestedBrowser && !CLOUD_BROWSER_CHOICES.includes(requestedBrowser)) {
+      return send(res, 422, {
+        error: "Chrome/Edge run locally only — choose Chromium, Firefox, or WebKit for cloud runs.",
+      });
+    }
+    const browser = CLOUD_BROWSER_CHOICES.includes(requestedBrowser as BrowserChoice)
+      ? requestedBrowser
+      : undefined;
+
     // Concurrency cap lives HERE now (single runner instance → in-memory state is authoritative).
     let release: () => void;
     try {
@@ -99,6 +113,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         startIdx: Math.max(0, Number(opts.resumeFromStep ?? opts.startIdx) || 0),
         varsOverride: opts.varsOverride,
         headless: true, // cloud runner has no display — always headless
+        browser,
       });
       console.log(`[runner] ran test ${testId} → ${(run as any)?.status ?? "done"} (${Date.now() - t0}ms)`);
       return send(res, 200, { run });
