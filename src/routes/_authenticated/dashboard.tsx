@@ -160,6 +160,27 @@ function Dashboard() {
     refresh();
   }, []); // eslint-disable-line
 
+  // Live updates: when a new test lands (e.g. uploaded by the testrify CLI), it appears in the
+  // list with no manual refresh. RLS on `tests` applies to Realtime too, so each user only receives
+  // their own rows; the owner_id filter is a belt-and-suspenders narrowing.
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`tests-live-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tests", filter: `owner_id=eq.${user.id}` },
+        (payload) => {
+          const row = payload.new as any;
+          setTests((prev) => (prev.some((t) => t.id === row.id) ? prev : [row, ...prev]));
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]); // eslint-disable-line
+
   // Recent runs are fetched scoped to the active project (via an inner join on tests),
   // so a project's runs are never hidden behind a global limit.
   const loadRuns = (projectId: string | null) => {

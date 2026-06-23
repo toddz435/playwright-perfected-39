@@ -168,8 +168,9 @@ export type HealFn = (args: {
 }) => Promise<string | null>;
 
 // Which browser engine to drive. chromium/firefox/webkit are the bundled, cross-platform engines
-// (webkit = Safari's engine); chrome/msedge use the real branded browser via channel (must be
-// installed on the host — fine in the cloud image, host-dependent locally).
+// (webkit = Safari's engine); chrome/msedge use the real branded browser via channel, which must be
+// installed on the host — available locally if you have Chrome/Edge, but NOT in the cloud runner
+// image (so the cloud runner only offers the bundled three; see CLOUD_BROWSER_CHOICES).
 export type BrowserChoice = "chromium" | "firefox" | "webkit" | "chrome" | "msedge";
 export const BROWSER_CHOICES: BrowserChoice[] = [
   "chromium",
@@ -178,6 +179,9 @@ export const BROWSER_CHOICES: BrowserChoice[] = [
   "chrome",
   "msedge",
 ];
+// The engines bundled in the cloud runner's Playwright image. chrome/msedge channels aren't there,
+// so the cloud runner rejects them up-front rather than failing late inside launchBrowser.
+export const CLOUD_BROWSER_CHOICES: BrowserChoice[] = ["chromium", "firefox", "webkit"];
 
 export type RunOptions = {
   startIdx?: number;

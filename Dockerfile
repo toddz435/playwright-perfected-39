@@ -12,9 +12,10 @@ COPY package.json ./
 RUN npm install --ignore-scripts --no-audit --no-fund \
   && npm install -g tsx@4
 
-# Guarantee the Chromium build matches whatever @playwright/test npm actually resolved — the ^1.61
-# range can float past the image's pinned browsers. Cloud runs are headless Chromium.
-RUN npx --yes playwright install chromium
+# Guarantee the bundled browser builds match whatever @playwright/test npm actually resolved — the
+# ^1.61 range can float past the image's pinned browsers. Cloud runs support chromium/firefox/webkit
+# (chrome/msedge channels need the real branded browser, which isn't in this image).
+RUN npx --yes playwright install chromium firefox webkit
 
 # App source: the shared engine (src/lib/*), tsconfig.json (for the @/ alias), and runner/server.ts.
 COPY . .

@@ -419,6 +419,24 @@ function runCodegen(url: string): Promise<string> {
   });
 }
 
+// Open a URL in the user's default browser (best-effort; the printed link is the fallback).
+function openInBrowser(url: string): void {
+  try {
+    const child =
+      process.platform === "darwin"
+        ? spawn("open", [url], { stdio: "ignore", detached: true })
+        : process.platform === "win32"
+          ? // `start` is a cmd builtin; its first quoted arg is the window TITLE, so pass "" then
+            // the URL (a bare `start <url>` can mis-parse a URL with & or be read as a title).
+            spawn("cmd", ["/c", "start", "", url], { stdio: "ignore", detached: true })
+          : spawn("xdg-open", [url], { stdio: "ignore", detached: true });
+    child.on("error", () => {}); // opener missing → silently rely on the printed link
+    child.unref();
+  } catch {
+    /* the printed link is the fallback */
+  }
+}
+
 async function record(url: string, name?: string): Promise<void> {
   // (URL is validated position-independently by the dispatch before we get here.)
   const { sb, userId } = await authedClient();
@@ -482,8 +500,10 @@ async function record(url: string, name?: string): Promise<void> {
   const brittleNote = parsed.brittle.length
     ? ` (${parsed.brittle.length} brittle locator${parsed.brittle.length > 1 ? "s" : ""} — open it in Testrify to harden)`
     : "";
+  const testUrl = `${APP_URL}/tests/${inserted.id}`;
   console.log(`\n✓ Uploaded "${testName}" — ${parsed.steps.length} steps${brittleNote}.`);
-  console.log(`  Open in Testrify:  ${APP_URL}/tests/${inserted.id}`);
+  console.log(`  Opening in Testrify:  ${testUrl}`);
+  openInBrowser(testUrl); // pop the test in the browser so you don't have to go find it
 }
 
 // ─── command dispatch ───────────────────────────────────────────────────────────
