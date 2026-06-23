@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { locatorLabel } from "@/lib/locator";
 import { suggestColumnForStep, uniquifyColumns } from "@/lib/dataset";
+import { SENSITIVE_RE } from "@/lib/sensitive";
 import { exportToPlaywright } from "@/lib/export-playwright";
 import {
   CONDITION_KINDS,
@@ -73,9 +74,8 @@ const STEP_ACTIONS = [
 const URL_ACTIONS = new Set(["goto", "expect_url_contains"]);
 // Actions that take a value.
 const VALUE_ACTIONS = new Set(["fill", "press", "expect_text", "expect_value", "expect_count"]);
-// Field/column names that look like they hold a credential. Dataset rows are stored unencrypted,
-// so the wizard flags these so the user can use a write-only test secret instead.
-const SENSITIVE_RE = /pass|secret|token|api.?key|otp|cvv|ssn|credit|card|\bpin\b/i;
+// SENSITIVE_RE (credential-ish field names) now lives in @/lib/sensitive — one source of truth
+// shared with the CLI recorder. The wizard flags these so the user uses a write-only secret.
 // A name usable as a {{variable}} / dataset column: interpolation-safe charset, no prototype-
 // pollution keys. Shared by the variables editor and the data-drive wizard.
 const RESERVED_VAR_NAMES = new Set(["__proto__", "constructor", "prototype"]);

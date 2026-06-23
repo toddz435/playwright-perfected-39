@@ -28,6 +28,7 @@ import {
 } from "../src/lib/cli-heal";
 import { redactHtml } from "../src/lib/redact";
 import { parseCodegen } from "../src/lib/codegen-parse";
+import { redactSensitiveFills } from "../src/lib/sensitive";
 
 const MAX_HTML = 14_000; // bound the prompt (same cap as the in-app healer)
 
@@ -437,7 +438,7 @@ function openInBrowser(url: string): void {
   }
 }
 
-async function record(url: string, name?: string): Promise<void> {
+async function record(url: string, name?: string, projectSel?: string): Promise<void> {
   // (URL is validated position-independently by the dispatch before we get here.)
   const { sb, userId } = await authedClient();
   const { data: projects, error: pErr } = await sb
@@ -452,9 +453,21 @@ async function record(url: string, name?: string): Promise<void> {
     console.error("✗ No projects yet — create one in Testrify first, then re-run.");
     process.exit(1);
   }
-  const project = projects[0]; // MVP: first project (a --project flag can come later)
+  const project = projectSel
+    ? projects.find(
+        (p: any) => p.id === projectSel || p.name?.toLowerCase() === projectSel.toLowerCase(),
+      )
+    : projects[0];
+  if (!project) {
+    console.error(
+      `✗ No project matching "${projectSel}". Your projects: ${projects.map((p: any) => p.name).filter(Boolean).join(", ")}`,
+    );
+    process.exit(1);
+  }
+  const chooseHint =
+    !projectSel && projects.length > 1 ? ' (use --project "Name" to pick another)' : "";
   console.log(
-    `Recording → project "${project.name}". A browser will open — click through your flow, then close the window.\n`,
+    `Recording → project "${project.name}"${chooseHint}. A browser will open — click through your flow, then close the window.\n`,
   );
 
   const script = await runCodegen(url);
@@ -477,8 +490,15 @@ async function record(url: string, name?: string): Promise<void> {
     refresh_token: refreshed.session.refresh_token,
   });
 
+  // Never persist recorded passwords: rewrite sensitive fills (password/token/…) to {{secret}}
+  // variable references and DROP the literal. The user sets the real values as secrets in the app.
+  const { steps, secretNames } = redactSensitiveFills(parsed.steps);
   const testName = name || `Recorded ${new Date().toISOString().slice(0, 16).replace("T", " ")}`;
-  const spec = { name: testName, description: "Recorded via testrify CLI", steps: parsed.steps };
+  const spec: any = { name: testName, description: "Recorded via testrify CLI", steps };
+  if (secretNames.length) {
+    spec.secrets = secretNames; // flagged secret (encrypted at rest once a value is set in-app)
+    spec.variables = Object.fromEntries(secretNames.map((n) => [n, ""])); // values set securely in-app
+  }
   const { data: inserted, error } = await sb
     .from("tests")
     .insert({
@@ -501,7 +521,12 @@ async function record(url: string, name?: string): Promise<void> {
     ? ` (${parsed.brittle.length} brittle locator${parsed.brittle.length > 1 ? "s" : ""} — open it in Testrify to harden)`
     : "";
   const testUrl = `${APP_URL}/tests/${inserted.id}`;
-  console.log(`\n✓ Uploaded "${testName}" — ${parsed.steps.length} steps${brittleNote}.`);
+  console.log(`\n✓ Uploaded "${testName}" — ${steps.length} steps${brittleNote}.`);
+  if (secretNames.length) {
+    console.log(
+      `  🔒 ${secretNames.length} sensitive field(s) → {{${secretNames.join("}}, {{")}}} — set their values as secrets in Testrify before running (the recorded values were NOT uploaded).`,
+    );
+  }
   console.log(`  Opening in Testrify:  ${testUrl}`);
   openInBrowser(testUrl); // pop the test in the browser so you don't have to go find it
 }
@@ -530,13 +555,13 @@ if (cmd === "heal" && arg2) {
     console.error('✗ Provide an http(s) URL:  testrify record <url> [--name "..."]');
     process.exit(1);
   }
-  record(url, flagValue("--name")).catch(die);
+  record(url, flagValue("--name"), flagValue("--project")).catch(die);
 } else {
   console.log("testrify — local-first test tooling for Testrify\n");
   console.log(
     "Usage:\n" +
       "  testrify login                          Sign in to your Testrify cloud account\n" +
-      '  testrify record <url> [--name "..."]    Record a flow locally → upload to your account\n' +
+      '  testrify record <url> [--name "..."] [--project "..."]   Record locally → upload to your account\n' +
       "  testrify heal <spec.ts>                 Auto-heal locators in an exported Playwright spec\n",
   );
   console.log("Env: SUPABASE_URL + SUPABASE_PUBLISHABLE_KEY (login/record), ANTHROPIC_API_KEY (heal).");
