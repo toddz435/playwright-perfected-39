@@ -14,6 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "heal": "npx tsx cli/testrify.ts heal",
+    "login": "npx tsx --env-file-if-exists=.env cli/testrify.ts login",
+    "record": "npx tsx --env-file-if-exists=.env cli/testrify.ts record",
     "scheduler": "node --env-file-if-exists=.env scripts/scheduler.mjs"
   },
   "dependencies": {
