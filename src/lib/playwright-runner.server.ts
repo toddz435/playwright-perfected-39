@@ -15,6 +15,7 @@ import {
 } from "@/lib/conditions";
 import { validateBlocks, isBlockMarker, loopBounds } from "@/lib/blocks";
 import { assertPublicUrl } from "@/lib/ssrf.server";
+import { guardContextNetwork } from "@/lib/ssrf-route.server";
 import type { Page } from "@playwright/test";
 
 // SSRF guard for browser navigation: refuse goto targets that resolve to private/internal/
@@ -289,6 +290,8 @@ export async function runBrowserSteps(
     return { status: "failed", steps: [{ idx: 0, status: "failed", action: "launch", error: msg }] };
   }
   const context = await browser.newContext();
+  // Guard every request the test's browser makes, not just goto targets (redirects, links, posts).
+  await guardContextNetwork(context, ALLOW_PRIVATE_HOSTS);
   const page = await context.newPage();
   if (opts.onPage) {
     try {
