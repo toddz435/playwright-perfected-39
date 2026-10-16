@@ -106,13 +106,26 @@ async function startCapture(liveId: string, page: Page): Promise<Capture> {
   // Chromium: CDP screencast pushes a frame whenever the page repaints (ack-gated).
   try {
     const cdp = await page.context().newCDPSession(page);
+    // Throttle with a trailing send: a frame that arrives inside the gap is held (newest wins)
+    // and flushed when the gap ends, so the LAST repaint is never lost — on a fast run that
+    // final frame is the one that matters.
     let lastSent = 0;
+    let pending: string | null = null;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      flushTimer = null;
+      if (pending == null) return;
+      lastSent = Date.now();
+      frame(pending);
+      pending = null;
+    };
     cdp.on("Page.screencastFrame", ({ data, sessionId }) => {
       cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
-      const now = Date.now();
-      if (now - lastSent < MIN_FRAME_GAP_MS || !hasViewers(liveId)) return;
-      lastSent = now;
-      frame(data);
+      if (!hasViewers(liveId)) return;
+      pending = data;
+      const wait = MIN_FRAME_GAP_MS - (Date.now() - lastSent);
+      if (wait <= 0) flush();
+      else if (!flushTimer) flushTimer = setTimeout(flush, wait);
     });
     await cdp.send("Page.startScreencast", {
       format: "jpeg",
@@ -122,6 +135,8 @@ async function startCapture(liveId: string, page: Page): Promise<Capture> {
     });
     return {
       stop: () => {
+        if (flushTimer) clearTimeout(flushTimer);
+        flush();
         cdp.send("Page.stopScreencast").catch(() => {});
         cdp.detach().catch(() => {});
       },
@@ -172,6 +187,14 @@ export function liveHooks(liveId: string, ownerId: string) {
     onStep: (info: LiveStepInfo) => {
       broadcast(liveId, JSON.stringify({ type: "step", ...info }));
       s.capture?.poke();
+    },
+    // Final frame of the end state, for every engine — a fast run may finish between repaints.
+    onBeforeClose: async (page: Page) => {
+      if (!hasViewers(liveId) || page.isClosed()) return;
+      const buf = await page.screenshot({ type: "jpeg", quality: 60, timeout: 1500 });
+      const msg = JSON.stringify({ type: "frame", data: buf.toString("base64") });
+      s.last = msg;
+      broadcast(liveId, msg);
     },
     end: (status: string) => {
       broadcast(liveId, JSON.stringify({ type: "done", status }));

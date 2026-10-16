@@ -122,6 +122,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         browser,
         onPage: live?.onPage,
         onStep: live?.onStep,
+        onBeforeClose: live?.onBeforeClose,
       });
       outcome = (run as any)?.status ?? "done";
       console.log(`[runner] ran test ${testId} → ${outcome} (${Date.now() - t0}ms)`);

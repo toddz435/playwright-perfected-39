@@ -199,7 +199,12 @@ export type RunOptions = {
   // as each real step starts. Both are best-effort observers — a throwing hook never fails a run.
   onPage?: (page: Page) => void | Promise<void>;
   onStep?: (info: LiveStepInfo) => void;
+  // Fires once, just before the browser closes, so live view can grab the final page state.
+  onBeforeClose?: (page: Page) => Promise<void>;
 };
+
+// Cap on how long onBeforeClose may hold the browser open.
+const BEFORE_CLOSE_MAX_MS = 2000;
 
 export type LiveStepInfo = { idx: number; total: number; action: string; target?: string };
 
@@ -794,6 +799,12 @@ export async function runBrowserSteps(
     // In a watched (headed) run, linger on the final page for a moment so the user can SEE the
     // end state before the window closes. Headless runs close immediately (nothing to watch).
     if (!headless) await new Promise((r) => setTimeout(r, WATCH_LINGER_MS));
+    if (opts.onBeforeClose) {
+      await Promise.race([
+        opts.onBeforeClose(page).catch(() => {}),
+        new Promise((r) => setTimeout(r, BEFORE_CLOSE_MAX_MS)),
+      ]);
+    }
     await browser.close().catch(() => {});
   }
 

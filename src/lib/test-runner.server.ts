@@ -220,6 +220,7 @@ export async function executeTest(
     browser?: BrowserChoice;
     onPage?: RunOptions["onPage"]; // live-view hooks (cloud runner) — see playwright-runner
     onStep?: RunOptions["onStep"];
+    onBeforeClose?: RunOptions["onBeforeClose"];
   } = {},
 ): Promise<ExecuteResult> {
   const startedAt = new Date().toISOString();
@@ -327,6 +328,7 @@ export async function executeTest(
         maxRunMs: Math.max(0, runDeadline - Date.now()),
         onPage: opts.onPage,
         onStep: opts.onStep,
+        onBeforeClose: opts.onBeforeClose,
       });
     let result = await runOnce();
     for (let attempt = 2; result.status === "failed" && attempt <= retries + 1; attempt++) {
