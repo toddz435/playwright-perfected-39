@@ -15,6 +15,7 @@ import {
 } from "@/lib/conditions";
 import { validateBlocks, isBlockMarker, loopBounds } from "@/lib/blocks";
 import { assertPublicUrl } from "@/lib/ssrf.server";
+import type { Page } from "@playwright/test";
 
 // SSRF guard for browser navigation: refuse goto targets that resolve to private/internal/
 // metadata addresses (e.g. 169.254.169.254). Critical now that the runner is internet-reachable
@@ -194,7 +195,18 @@ export type RunOptions = {
   // with a "time budget" failure. (A single in-flight step is bounded by its own
   // per-step/goto timeout, not preempted mid-step.) Pairs with the per-step/loop caps.
   maxRunMs?: number;
+  // Live-view hooks (cloud runner): onPage fires once per attempt with the fresh page, onStep
+  // as each real step starts. Both are best-effort observers — a throwing hook never fails a run.
+  onPage?: (page: Page) => void | Promise<void>;
+  onStep?: (info: LiveStepInfo) => void;
+  // Fires once, just before the browser closes, so live view can grab the final page state.
+  onBeforeClose?: (page: Page) => Promise<void>;
 };
+
+// Cap on how long onBeforeClose may hold the browser open.
+const BEFORE_CLOSE_MAX_MS = 2000;
+
+export type LiveStepInfo = { idx: number; total: number; action: string; target?: string };
 
 export const DEFAULT_RUN_BUDGET_MS = 5 * 60 * 1000;
 
@@ -278,6 +290,13 @@ export async function runBrowserSteps(
   }
   const context = await browser.newContext();
   const page = await context.newPage();
+  if (opts.onPage) {
+    try {
+      await opts.onPage(page);
+    } catch (e) {
+      console.warn("[live] onPage hook failed:", e);
+    }
+  }
 
   const results: StepResult[] = [];
   let status: "passed" | "failed" = "passed";
@@ -401,6 +420,19 @@ export async function runBrowserSteps(
         });
         status = "failed";
         break;
+      }
+
+      if (opts.onStep && !isBlockMarker(s.action)) {
+        try {
+          opts.onStep({
+            idx: i,
+            total: steps.length,
+            action: s.action,
+            target: s.locator ? locatorLabel(s.locator) : s.target,
+          });
+        } catch {
+          // observer only — never let live view affect the run
+        }
       }
 
       // --- control-flow markers (if / else / endif) — see src/lib/blocks.ts ---
@@ -767,6 +799,12 @@ export async function runBrowserSteps(
     // In a watched (headed) run, linger on the final page for a moment so the user can SEE the
     // end state before the window closes. Headless runs close immediately (nothing to watch).
     if (!headless) await new Promise((r) => setTimeout(r, WATCH_LINGER_MS));
+    if (opts.onBeforeClose) {
+      await Promise.race([
+        opts.onBeforeClose(page).catch(() => {}),
+        new Promise((r) => setTimeout(r, BEFORE_CLOSE_MAX_MS)),
+      ]);
+    }
     await browser.close().catch(() => {});
   }
 

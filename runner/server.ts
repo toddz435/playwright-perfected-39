@@ -8,6 +8,7 @@
 //   POST /run    headers: x-runner-secret: <RUNNER_SECRET>, authorization: Bearer <user supabase JWT>
 //                body:    { testId: string, opts?: { resumeFromStep?, varsOverride? } }
 //   GET  /health (liveness, no auth)
+//   GET  /live?t=<ticket>  WebSocket live view of a run started with opts.liveId (see runner/live.ts)
 //
 // Run with: tsx runner/server.ts   (env: RUNNER_SECRET, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
 //                                    SECRETS_KEY, ANTHROPIC_API_KEY)
@@ -18,6 +19,8 @@ import { executeTest } from "@/lib/test-runner.server";
 import { acquireSlot, ConcurrencyError, RUN_LIMITS } from "@/lib/concurrency.server";
 import { quotaBlock } from "@/lib/quota.server";
 import { CLOUD_BROWSER_CHOICES, type BrowserChoice } from "@/lib/playwright-runner.server";
+import { isValidLiveId } from "@/lib/live-ticket.server";
+import { handleLiveUpgrade, liveHooks } from "./live";
 
 const PORT = Number(process.env.PORT) || 8080;
 const RUNNER_SECRET = process.env.RUNNER_SECRET || "";
@@ -107,6 +110,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       if (e instanceof ConcurrencyError) return send(res, 429, { error: e.message });
       throw e;
     }
+    // Live view: stream this run to its owner's /live socket(s) under the client's liveId.
+    const live = isValidLiveId(opts.liveId) ? liveHooks(opts.liveId, userId) : null;
+    let outcome = "error";
     try {
       const t0 = Date.now();
       const { run } = await executeTest(sb, test, userId, {
@@ -114,10 +120,15 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         varsOverride: opts.varsOverride,
         headless: true, // cloud runner has no display — always headless
         browser,
+        onPage: live?.onPage,
+        onStep: live?.onStep,
+        onBeforeClose: live?.onBeforeClose,
       });
-      console.log(`[runner] ran test ${testId} → ${(run as any)?.status ?? "done"} (${Date.now() - t0}ms)`);
+      outcome = (run as any)?.status ?? "done";
+      console.log(`[runner] ran test ${testId} → ${outcome} (${Date.now() - t0}ms)`);
       return send(res, 200, { run });
     } finally {
+      live?.end(outcome);
       release();
     }
   } catch (e: any) {
@@ -126,6 +137,10 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     console.error("[runner] error:", e?.stack || e);
     return send(res, 500, { error: "internal runner error" });
   }
+});
+
+server.on("upgrade", (req, socket, head) => {
+  if (!handleLiveUpgrade(req, socket, head)) socket.destroy();
 });
 
 server.listen(PORT, () => console.log(`[runner] listening on :${PORT}`));

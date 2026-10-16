@@ -6,6 +6,7 @@ import {
   runBrowserSteps,
   DEFAULT_RUN_BUDGET_MS,
   type BrowserChoice,
+  type RunOptions,
 } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
 import { applyRecoveries } from "@/lib/recovery";
@@ -217,6 +218,9 @@ export async function executeTest(
     noStabilize?: boolean;
     headless?: boolean; // false → headed "watch" run (local runner only)
     browser?: BrowserChoice;
+    onPage?: RunOptions["onPage"]; // live-view hooks (cloud runner) — see playwright-runner
+    onStep?: RunOptions["onStep"];
+    onBeforeClose?: RunOptions["onBeforeClose"];
   } = {},
 ): Promise<ExecuteResult> {
   const startedAt = new Date().toISOString();
@@ -322,6 +326,9 @@ export async function executeTest(
         headless: opts.headless,
         browser: opts.browser,
         maxRunMs: Math.max(0, runDeadline - Date.now()),
+        onPage: opts.onPage,
+        onStep: opts.onStep,
+        onBeforeClose: opts.onBeforeClose,
       });
     let result = await runOnce();
     for (let attempt = 2; result.status === "failed" && attempt <= retries + 1; attempt++) {

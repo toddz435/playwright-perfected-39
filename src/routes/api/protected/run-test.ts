@@ -13,16 +13,17 @@ export const Route = createFileRoute("/api/protected/run-test")({
       POST: async ({ request }) => {
         try {
           const { userId, token } = await requireUser(request);
-          const { testId, resumeFromStep, watch, browser } = await request.json();
+          const { testId, resumeFromStep, watch, browser, liveId } = await request.json();
           if (!testId) return json({ error: "testId required" }, { status: 400 });
 
           // Cloud: hand execution to the Railway runner (the Worker can't run Playwright). The
           // runner re-validates the user token, enforces quota + concurrency, and runs headless.
           // `browser` IS forwarded — the cloud runner supports chromium/firefox/webkit (the bundled
           // engines); chrome/msedge channels aren't installed there and fail with a clear message.
-          // `watch` is local-only (headed needs a display), so it's dropped.
+          // `watch` (headed) can't work without a display; instead `liveId` (from live-ticket)
+          // makes the runner stream the headless page to the owner's live-view socket.
           if (runnerConfigured()) {
-            return await delegateRun(token, { testId, opts: { resumeFromStep, browser } });
+            return await delegateRun(token, { testId, opts: { resumeFromStep, browser, liveId } });
           }
 
           // Local dev (no RUNNER_URL): run in-process on the Node server, where Playwright works.

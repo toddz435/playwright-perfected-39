@@ -36,6 +36,7 @@ import { Route as ApiProtectedRunTestRouteImport } from './routes/api/protected/
 import { Route as ApiProtectedRunDatasetRouteImport } from './routes/api/protected/run-dataset'
 import { Route as ApiProtectedRefreshDatasetRouteImport } from './routes/api/protected/refresh-dataset'
 import { Route as ApiProtectedRecordCodegenRouteImport } from './routes/api/protected/record-codegen'
+import { Route as ApiProtectedLiveTicketRouteImport } from './routes/api/protected/live-ticket'
 import { Route as ApiProtectedHardenTestRouteImport } from './routes/api/protected/harden-test'
 import { Route as ApiProtectedHardenProjectRouteImport } from './routes/api/protected/harden-project'
 import { Route as ApiProtectedDeleteTestRouteImport } from './routes/api/protected/delete-test'
@@ -192,6 +193,11 @@ const ApiProtectedRecordCodegenRoute =
     path: '/api/protected/record-codegen',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiProtectedLiveTicketRoute = ApiProtectedLiveTicketRouteImport.update({
+  id: '/api/protected/live-ticket',
+  path: '/api/protected/live-ticket',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProtectedHardenTestRoute = ApiProtectedHardenTestRouteImport.update({
   id: '/api/protected/harden-test',
   path: '/api/protected/harden-test',
@@ -296,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/api/protected/delete-test': typeof ApiProtectedDeleteTestRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
+  '/api/protected/live-ticket': typeof ApiProtectedLiveTicketRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/refresh-dataset': typeof ApiProtectedRefreshDatasetRoute
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
@@ -337,6 +344,7 @@ export interface FileRoutesByTo {
   '/api/protected/delete-test': typeof ApiProtectedDeleteTestRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
+  '/api/protected/live-ticket': typeof ApiProtectedLiveTicketRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/refresh-dataset': typeof ApiProtectedRefreshDatasetRoute
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
@@ -380,6 +388,7 @@ export interface FileRoutesById {
   '/api/protected/delete-test': typeof ApiProtectedDeleteTestRoute
   '/api/protected/harden-project': typeof ApiProtectedHardenProjectRoute
   '/api/protected/harden-test': typeof ApiProtectedHardenTestRoute
+  '/api/protected/live-ticket': typeof ApiProtectedLiveTicketRoute
   '/api/protected/record-codegen': typeof ApiProtectedRecordCodegenRoute
   '/api/protected/refresh-dataset': typeof ApiProtectedRefreshDatasetRoute
   '/api/protected/run-dataset': typeof ApiProtectedRunDatasetRoute
@@ -423,6 +432,7 @@ export interface FileRouteTypes {
     | '/api/protected/delete-test'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
+    | '/api/protected/live-ticket'
     | '/api/protected/record-codegen'
     | '/api/protected/refresh-dataset'
     | '/api/protected/run-dataset'
@@ -464,6 +474,7 @@ export interface FileRouteTypes {
     | '/api/protected/delete-test'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
+    | '/api/protected/live-ticket'
     | '/api/protected/record-codegen'
     | '/api/protected/refresh-dataset'
     | '/api/protected/run-dataset'
@@ -506,6 +517,7 @@ export interface FileRouteTypes {
     | '/api/protected/delete-test'
     | '/api/protected/harden-project'
     | '/api/protected/harden-test'
+    | '/api/protected/live-ticket'
     | '/api/protected/record-codegen'
     | '/api/protected/refresh-dataset'
     | '/api/protected/run-dataset'
@@ -539,6 +551,7 @@ export interface RootRouteChildren {
   ApiProtectedDeleteTestRoute: typeof ApiProtectedDeleteTestRoute
   ApiProtectedHardenProjectRoute: typeof ApiProtectedHardenProjectRoute
   ApiProtectedHardenTestRoute: typeof ApiProtectedHardenTestRoute
+  ApiProtectedLiveTicketRoute: typeof ApiProtectedLiveTicketRoute
   ApiProtectedRecordCodegenRoute: typeof ApiProtectedRecordCodegenRoute
   ApiProtectedRefreshDatasetRoute: typeof ApiProtectedRefreshDatasetRoute
   ApiProtectedRunDatasetRoute: typeof ApiProtectedRunDatasetRoute
@@ -744,6 +757,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProtectedRecordCodegenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/protected/live-ticket': {
+      id: '/api/protected/live-ticket'
+      path: '/api/protected/live-ticket'
+      fullPath: '/api/protected/live-ticket'
+      preLoaderRoute: typeof ApiProtectedLiveTicketRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/protected/harden-test': {
       id: '/api/protected/harden-test'
       path: '/api/protected/harden-test'
@@ -887,6 +907,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProtectedDeleteTestRoute: ApiProtectedDeleteTestRoute,
   ApiProtectedHardenProjectRoute: ApiProtectedHardenProjectRoute,
   ApiProtectedHardenTestRoute: ApiProtectedHardenTestRoute,
+  ApiProtectedLiveTicketRoute: ApiProtectedLiveTicketRoute,
   ApiProtectedRecordCodegenRoute: ApiProtectedRecordCodegenRoute,
   ApiProtectedRefreshDatasetRoute: ApiProtectedRefreshDatasetRoute,
   ApiProtectedRunDatasetRoute: ApiProtectedRunDatasetRoute,
