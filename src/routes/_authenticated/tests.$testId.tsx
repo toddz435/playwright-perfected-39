@@ -20,6 +20,7 @@ import { isBlockMarker, validateBlocks, computeDepths, blockBounds, loopBounds }
 import { advisoriesToMarkdown } from "@/lib/advisory-format";
 import { specVars } from "@/lib/vars";
 import { toast } from "sonner";
+import { useLiveView, LiveViewPanel } from "@/components/live-view";
 import {
   ArrowLeft,
   Play,
@@ -107,9 +108,10 @@ function TestDetail() {
   const [imgState, setImgState] = useState<
     Record<string, { busy?: boolean; updating?: boolean; urls?: Record<string, string> }>
   >({});
-  // Run options: "watch" opens a headed browser so you can see the run (local runner only); the
-  // browser picker chooses the engine (chromium/firefox/webkit + chrome/edge channels).
+  // Run options: "watch" lets you see the run — locally a headed browser window, in the cloud a
+  // live view streamed from the runner; the browser picker chooses the engine.
   const [watch, setWatch] = useState(false);
+  const live = useLiveView();
   const [browser, setBrowser] = useState("chromium");
   const [jiraBusy, setJiraBusy] = useState<string | null>(null); // runId currently being filed
   // Data-Driven Testing: the user's datasets (for the attach dropdown) + per-row run results.
@@ -215,17 +217,33 @@ function TestDetail() {
 
   const run = async (resumeFromStep?: number) => {
     setRunning(true);
+    // Cloud live view: get a pass, connect to the runner, then start the run under that liveId.
+    // Locally the ticket endpoint says { local: true } and `watch` opens a headed browser instead.
+    let liveId: string | undefined;
+    if (test.type === "browser" && watch) {
+      const id = crypto.randomUUID();
+      const ticket = await apiCall<any>("/api/protected/live-ticket", { liveId: id }).catch(
+        () => null,
+      );
+      if (ticket?.url) {
+        liveId = id;
+        await live.open(ticket.url);
+      }
+    }
     try {
       const { run } = await apiCall<any>("/api/protected/run-test", {
         testId,
         resumeFromStep,
         watch: test.type === "browser" ? watch : undefined,
         browser: test.type === "browser" ? browser : undefined,
+        liveId,
       });
+      if (liveId) live.settle(run.status);
       toast[run.status === "passed" ? "success" : "error"](`Run ${run.status}`);
       refresh();
       if (run.status === "failed") analyzeRun(run);
     } catch (e: any) {
+      if (liveId) live.settle("error");
       toast.error(e.message);
     }
     setRunning(false);
@@ -821,7 +839,7 @@ function TestDetail() {
             </div>
             <p className="text-muted-foreground text-sm mt-1">{test.description}</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             {test.type === "browser" && (
               <label
                 className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
@@ -835,7 +853,7 @@ function TestDetail() {
             {test.type === "browser" && (
               <label
                 className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
-                title="Open a real, visible browser and slow the actions so you can watch the run happen. Local runner only — a cloud run stays headless (use the recorded video/trace there)."
+                title="Watch the run happen: in the cloud, a live view of the test browser appears on this page; on a local runner, a real browser window opens with slowed-down actions."
               >
                 {watch ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                 Watch
@@ -991,6 +1009,8 @@ function TestDetail() {
           </div>
         </div>
       </div>
+
+      {live.state && <LiveViewPanel state={live.state} onClose={live.close} />}
 
       {/* DDT: parameterize-from-recording wizard */}
       {paramOpen && (

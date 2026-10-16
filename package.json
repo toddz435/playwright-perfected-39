@@ -3,7 +3,9 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
-  "bin": { "testrify": "cli/testrify.ts" },
+  "bin": {
+    "testrify": "cli/testrify.ts"
+  },
   "scripts": {
     "dev": "node --env-file-if-exists=.env ./node_modules/vite/bin/vite.js dev",
     "build": "vite build",
@@ -76,6 +78,7 @@
     "tw-animate-css": "^1.3.4",
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
+    "ws": "^8.18.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -88,6 +91,7 @@
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.0.4",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
