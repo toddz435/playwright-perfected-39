@@ -66,7 +66,31 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
+type KeepAliveEnv = { SUPABASE_URL?: string; SUPABASE_PUBLISHABLE_KEY?: string };
+
+// Daily Cloudflare Cron Trigger: one tiny read so the free-tier Supabase project never
+// counts as inactive (it auto-pauses after ~7 idle days; restore window is only 90 days).
+// The publishable key + RLS means this reads nothing — the query itself is the activity.
+async function pingSupabase(env: KeepAliveEnv): Promise<void> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) {
+    console.error("keep-alive: SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY not set");
+    return;
+  }
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/projects?select=id&limit=1`, {
+    headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY },
+  });
+  console.log(`keep-alive: Supabase responded ${res.status}`);
+}
+
 export default {
+  async scheduled(
+    _controller: unknown,
+    env: KeepAliveEnv,
+    ctx: { waitUntil: (p: Promise<unknown>) => void },
+  ) {
+    ctx.waitUntil(pingSupabase(env));
+  },
+
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const handler = await getServerEntry();
