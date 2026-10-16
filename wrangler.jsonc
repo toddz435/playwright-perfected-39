@@ -3,6 +3,8 @@
   "name": "testrify",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
+  // Daily keep-alive ping so the free Supabase project never auto-pauses (see src/server.ts).
+  "triggers": { "crons": ["0 15 * * *"] },
   "main": "src/server.ts",
   // Playwright + image-diff libs are Node-only and run ONLY on the runner, never in the Worker.
   // They're reached solely via dynamic import in test-execution paths; alias them to a throwing
