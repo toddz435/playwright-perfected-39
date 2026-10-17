@@ -21,6 +21,7 @@ import { acquireSlot, ConcurrencyError, RUN_LIMITS } from "@/lib/concurrency.ser
 import { quotaBlock } from "@/lib/quota.server";
 import { CLOUD_BROWSER_CHOICES, type BrowserChoice } from "@/lib/playwright-runner.server";
 import { isValidLiveId } from "@/lib/live-ticket.server";
+import { parseDeviceChoice } from "@/lib/devices";
 import { handleLiveUpgrade, liveHooks } from "./live";
 import { handleRecordUpgrade } from "./record";
 
@@ -126,6 +127,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         varsOverride: opts.varsOverride,
         headless: true, // cloud runner has no display — always headless
         browser,
+        device: parseDeviceChoice(opts.device),
         onPage: live?.onPage,
         onStep: live?.onStep,
         onBeforeClose: live?.onBeforeClose,

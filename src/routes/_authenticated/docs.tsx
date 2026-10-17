@@ -90,9 +90,12 @@ const SECTIONS: Section[] = [
   },
   {
     icon: Globe,
-    title: "Watch & cross-browser",
-    blurb: "See it run, on the engine your users actually use.",
+    title: "Watch, cross-browser & mobile",
+    blurb: "See it run, on the engine and device your users actually use.",
     items: [
+      "Mobile & tablet: pick a Device (iPhone 15, iPhone SE, Pixel 7, Galaxy S9+, iPad Pro 11, iPad Mini) — real screen size, touch and mobile user agent, so the site serves its mobile version. Saved with the test.",
+      "“Run on devices” runs one test across several device × browser combos at once (e.g. iPhone on WebKit — Safari's engine, Android on Chromium) with a result per combo.",
+      "Record on a device in Codegen to capture the mobile site; Export TS keeps the device setting.",
       "“Watch” shows the run live on the test page — the cloud browser streams step by step (on a local runner it opens a real browser window instead).",
       "Pick the engine: Chromium, Firefox, or WebKit (Safari) — plus real Chrome / Edge where installed.",
       "Headless and fast by default; flip Watch on per run when you want eyes on it.",

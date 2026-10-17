@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Loader2, Wand2, Sparkles, Save, CircleDot } from "lucide-react";
 import { locatorLabel } from "@/lib/locator";
 import { useCloudRecorder, CloudRecorderPanel } from "@/components/cloud-recorder";
+import { DEVICES } from "@/lib/devices";
 
 export const Route = createFileRoute("/_authenticated/codegen")({
   head: () => ({ meta: [{ title: "Codegen — Testrify" }] }),
@@ -33,6 +34,9 @@ function Codegen() {
   const [result, setResult] = useState<any>(null);
   const [recordUrl, setRecordUrl] = useState("");
   const [recording, setRecording] = useState(false);
+  // Device to record on (cloud recorder); saved as the new test's default device.
+  const [recordDevice, setRecordDevice] = useState("desktop");
+  const [recordedDevice, setRecordedDevice] = useState("desktop");
   const [testName, setTestName] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
 
@@ -77,7 +81,8 @@ function Codegen() {
         kind: "record",
       });
       if (ticket?.url) {
-        cloud.start(ticket.url, recordUrl.trim());
+        cloud.start(ticket.url, recordUrl.trim(), recordDevice);
+        setRecordedDevice(recordDevice);
         return;
       }
     } catch (e: any) {
@@ -133,7 +138,12 @@ function Codegen() {
     // Never persist recorded passwords: rewrite sensitive fills to {{secret}} refs (literal dropped)
     // and register them as empty secret variables for the user to fill in the Variables editor.
     const { steps, secretNames } = redactSensitiveFills(result.steps || []);
-    const spec: any = { ...result, name: testName.trim(), steps };
+    const spec: any = {
+      ...result,
+      name: testName.trim(),
+      steps,
+      ...(recordedDevice !== "desktop" ? { device: recordedDevice } : {}),
+    };
     if (secretNames.length) {
       spec.secrets = [...new Set([...(result.secrets || []), ...secretNames])];
       spec.variables = {
@@ -190,6 +200,19 @@ function Codegen() {
             className="bg-input/50 font-mono text-sm"
             onKeyDown={(e) => e.key === "Enter" && !recording && !cloudBusy && record()}
           />
+          <select
+            value={recordDevice}
+            onChange={(e) => setRecordDevice(e.target.value)}
+            disabled={recording || cloudBusy}
+            title="Record on a phone or tablet to capture the site's mobile version (cloud recorder). The saved test keeps this device."
+            className="bg-input/50 border border-border rounded-md px-2 text-sm shrink-0"
+          >
+            {DEVICES.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
           <Button disabled={recording || cloudBusy} onClick={record} className="shrink-0">
             {recording || cloudBusy ? (
               <>

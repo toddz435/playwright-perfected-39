@@ -6,6 +6,7 @@ import { acquireSlot, ConcurrencyError, RUN_LIMITS } from "@/lib/concurrency.ser
 import { BROWSER_CHOICES, type BrowserChoice } from "@/lib/playwright-runner.server";
 import { quotaBlock } from "@/lib/quota.server";
 import { runnerConfigured, delegateRun } from "@/lib/runner-client.server";
+import { parseDeviceChoice } from "@/lib/devices";
 
 export const Route = createFileRoute("/api/protected/run-test")({
   server: {
@@ -13,7 +14,8 @@ export const Route = createFileRoute("/api/protected/run-test")({
       POST: async ({ request }) => {
         try {
           const { userId, token } = await requireUser(request);
-          const { testId, resumeFromStep, watch, browser, liveId } = await request.json();
+          const { testId, resumeFromStep, watch, browser, liveId, device } = await request.json();
+          const deviceChoice = parseDeviceChoice(device);
           if (!testId) return json({ error: "testId required" }, { status: 400 });
 
           // Cloud: hand execution to the Railway runner (the Worker can't run Playwright). The
@@ -23,7 +25,10 @@ export const Route = createFileRoute("/api/protected/run-test")({
           // `watch` (headed) can't work without a display; instead `liveId` (from live-ticket)
           // makes the runner stream the headless page to the owner's live-view socket.
           if (runnerConfigured()) {
-            return await delegateRun(token, { testId, opts: { resumeFromStep, browser, liveId } });
+            return await delegateRun(token, {
+              testId,
+              opts: { resumeFromStep, browser, liveId, device: deviceChoice },
+            });
           }
 
           // Local dev (no RUNNER_URL): run in-process on the Node server, where Playwright works.
@@ -59,6 +64,7 @@ export const Route = createFileRoute("/api/protected/run-test")({
               startIdx: Math.max(0, Number(resumeFromStep) || 0),
               headless: watch ? false : undefined,
               browser: browserChoice,
+              device: deviceChoice,
             });
             return json({ run });
           } finally {

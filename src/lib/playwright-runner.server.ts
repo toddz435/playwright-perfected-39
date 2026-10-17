@@ -16,6 +16,7 @@ import {
 import { validateBlocks, isBlockMarker, loopBounds } from "@/lib/blocks";
 import { assertPublicUrl } from "@/lib/ssrf.server";
 import { guardContextNetwork } from "@/lib/ssrf-route.server";
+import { deviceInfo, type DeviceId } from "@/lib/devices";
 import type { Page } from "@playwright/test";
 
 // SSRF guard for browser navigation: refuse goto targets that resolve to private/internal/
@@ -192,6 +193,8 @@ export type RunOptions = {
   gotoTimeoutMs?: number;
   headless?: boolean;
   browser?: BrowserChoice;
+  // Mobile/tablet emulation (src/lib/devices.ts); absent/"desktop" = a desktop window.
+  device?: DeviceId;
   // Wall-clock budget for this run, checked BETWEEN steps; if exceeded the run stops cleanly
   // with a "time budget" failure. (A single in-flight step is bounded by its own
   // per-step/goto timeout, not preempted mid-step.) Pairs with the per-step/loop caps.
@@ -250,6 +253,24 @@ async function launchBrowser(choice: BrowserChoice, headless: boolean) {
   }
 }
 
+// Browser-context options for a device: Playwright's descriptor (viewport, deviceScaleFactor,
+// isMobile, hasTouch, userAgent). Firefox has no mobile mode — Playwright rejects isMobile there —
+// so on Firefox the device's size, touch and user agent apply without it.
+export async function deviceContextOptions(
+  device: DeviceId | undefined,
+  browser: BrowserChoice,
+): Promise<Record<string, unknown>> {
+  const name = deviceInfo(device)?.playwright;
+  if (!name) return {};
+  const { devices } = await import("@playwright/test");
+  const { defaultBrowserType: _default, ...desc } = devices[name];
+  if (browser === "firefox") {
+    const { isMobile: _mobile, ...rest } = desc;
+    return rest;
+  }
+  return desc;
+}
+
 export async function runBrowserSteps(
   steps: Step[],
   opts: RunOptions = {},
@@ -287,9 +308,12 @@ export async function runBrowserSteps(
     const msg = branded
       ? `Couldn't launch ${branded} — it must be installed on the runner. Pick Chromium/Firefox/WebKit, or install ${branded}.`
       : `Couldn't launch the ${choice} browser: ${e?.message || e}`;
-    return { status: "failed", steps: [{ idx: 0, status: "failed", action: "launch", error: msg }] };
+    return {
+      status: "failed",
+      steps: [{ idx: 0, status: "failed", action: "launch", error: msg }],
+    };
   }
-  const context = await browser.newContext();
+  const context = await browser.newContext(await deviceContextOptions(opts.device, choice));
   // Guard every request the test's browser makes, not just goto targets (redirects, links, posts).
   await guardContextNetwork(context, ALLOW_PRIVATE_HOSTS);
   const page = await context.newPage();

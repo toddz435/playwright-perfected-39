@@ -29,13 +29,17 @@ describe("emitLocator", () => {
       'page.getByRole("button", { name: "Save" })',
     );
     expect(emitLocator({ locator: { by: "role", role: "list" } })).toBe('page.getByRole("list")');
-    expect(emitLocator({ locator: { by: "label", value: "Email" } })).toBe('page.getByLabel("Email")');
+    expect(emitLocator({ locator: { by: "label", value: "Email" } })).toBe(
+      'page.getByLabel("Email")',
+    );
     expect(emitLocator({ locator: { by: "placeholder", value: "Search" } })).toBe(
       'page.getByPlaceholder("Search")',
     );
     expect(emitLocator({ locator: { by: "text", value: "Hi" } })).toBe('page.getByText("Hi")');
     expect(emitLocator({ locator: { by: "css", value: ".btn" } })).toBe('page.locator(".btn")');
-    expect(emitLocator({ locator: { by: "xpath", value: "//a" } })).toBe('page.locator("xpath=//a")');
+    expect(emitLocator({ locator: { by: "xpath", value: "//a" } })).toBe(
+      'page.locator("xpath=//a")',
+    );
   });
   it("falls back to page.locator(target) for a raw target", () => {
     expect(emitLocator({ target: "#id" })).toBe('page.locator("#id")');
@@ -110,5 +114,23 @@ describe("exportToPlaywright", () => {
     expect(out).toContain('await page.getByText("Next").click();');
     expect(out).toContain("// }");
     expect(out).toContain("conditional/loop blocks");
+  });
+
+  it("adds the device's Playwright descriptor when the test emulates a device", () => {
+    const out = exportToPlaywright({
+      name: "mobile",
+      spec: { device: "iphone-15", steps: [{ action: "goto", target: "https://example.com" }] },
+    });
+    expect(out).toContain("import { test, expect, devices } from '@playwright/test';");
+    expect(out).toContain('test.use({ ...devices["iPhone 15"] });');
+    expect(out).toContain("--project=webkit");
+  });
+
+  it("exports desktop tests without device setup", () => {
+    const out = exportToPlaywright({
+      name: "desk",
+      spec: { device: "desktop", steps: [{ action: "goto", target: "https://example.com" }] },
+    });
+    expect(out).not.toContain("devices");
   });
 });

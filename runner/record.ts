@@ -24,6 +24,8 @@ import { assertPublicUrl } from "@/lib/ssrf.server";
 import { guardContextNetwork } from "@/lib/ssrf-route.server";
 import { acquireSlot, ConcurrencyError, RECORDER_LIMITS } from "@/lib/concurrency.server";
 import { startPageCapture, type Capture } from "./live";
+import { deviceContextOptions } from "@/lib/playwright-runner.server";
+import { cleanDeviceId } from "@/lib/devices";
 
 const VIEWPORT = { width: 1280, height: 720 };
 const MAX_SESSION_MS = 10 * 60 * 1000;
@@ -90,6 +92,7 @@ function toScript(actions: string[]): string {
 type ClientMsg = {
   type?: string;
   url?: unknown;
+  device?: unknown;
   action?: string;
   x?: unknown;
   y?: unknown;
@@ -170,12 +173,19 @@ async function runSession(ws: WebSocket, userId: string) {
     ws.close(1000, "done");
   }
 
-  async function start(rawUrl: unknown) {
+  // The session's viewport — 1280×720 on desktop, or the emulated device's screen.
+  let viewport = VIEWPORT;
+
+  async function start(rawUrl: unknown, rawDevice: unknown) {
     if (typeof rawUrl !== "string") throw new Error("A http(s) URL is required");
     await assertPublicUrl(rawUrl, ALLOW_PRIVATE_HOSTS);
     const { chromium } = await import("@playwright/test");
     browser = await chromium.launch({ headless: true });
-    context = await browser.newContext({ viewport: VIEWPORT });
+    // Device emulation (phone/tablet) — the recorder always uses Chromium, where every
+    // descriptor (incl. isMobile) is supported.
+    const deviceOpts = await deviceContextOptions(cleanDeviceId(rawDevice), "chromium");
+    viewport = (deviceOpts.viewport as typeof VIEWPORT | undefined) ?? VIEWPORT;
+    context = await browser.newContext({ viewport: VIEWPORT, ...deviceOpts });
     const rc = context as RecorderContext;
     if (typeof rc._enableRecorder !== "function") {
       throw new Error("The cloud recorder isn't available in this Playwright version.");
@@ -223,7 +233,7 @@ async function runSession(ws: WebSocket, userId: string) {
       () => ws.readyState === WebSocket.OPEN,
     );
     await page.goto(rawUrl, { timeout: 20000 });
-    send({ type: "ready", viewport: VIEWPORT });
+    send({ type: "ready", viewport });
   }
 
   async function handle(msg: ClientMsg) {
@@ -231,7 +241,7 @@ async function runSession(ws: WebSocket, userId: string) {
     if (msg?.type === "start") {
       if (browser) return;
       try {
-        await start(msg.url);
+        await start(msg.url, msg.device);
       } catch (e) {
         send({
           type: "error",
@@ -244,8 +254,8 @@ async function runSession(ws: WebSocket, userId: string) {
     if (!page || page.isClosed()) return;
     switch (msg?.type) {
       case "mouse": {
-        const x = clamp(msg.x, VIEWPORT.width);
-        const y = clamp(msg.y, VIEWPORT.height);
+        const x = clamp(msg.x, viewport.width);
+        const y = clamp(msg.y, viewport.height);
         const button =
           msg.button === "right" || msg.button === "middle" ? msg.button : ("left" as const);
         await page.mouse.move(x, y);
