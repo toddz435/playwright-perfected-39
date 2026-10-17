@@ -10,14 +10,13 @@
 // Runner → client:  ready{viewport} | frame{data} | notice{message} | error{message} |
 //                   script{code, reason}
 //
-// Uses Playwright's PRIVATE context._enableRecorder (the API behind `codegen`). The version is
-// pinned by package-lock (Dockerfile uses npm ci); if an upgrade removes it, sessions fail with a
-// clear error and src/lib/recorder-hook.test.ts goes red.
+// Uses Playwright's PRIVATE context._enableRecorder (the API behind `codegen`) in its window-less
+// "api" mode: instead of opening the Inspector window (impossible on a display-less server) or
+// writing a file, it reports each recorded action's code to an event sink, and we assemble the
+// script. The version is pinned by package-lock (Dockerfile uses npm ci); if an upgrade removes
+// it, sessions fail with a clear error and src/lib/recorder-hook.test.ts goes red.
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { verifyLiveTicket } from "@/lib/live-ticket.server";
@@ -55,9 +54,26 @@ const COMBO_RE = /^((Control|Shift|Alt|Meta)\+)+[A-Za-z0-9]$/;
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
 
-type RecorderContext = BrowserContext & {
-  _enableRecorder?: (opts: Record<string, unknown>) => Promise<void>;
+// Code for one recorded action arrives via actionAdded; actionUpdated revises the latest one
+// (e.g. consecutive keystrokes merged into a single fill).
+type RecorderSink = {
+  actionAdded: (page: Page, data: unknown, code: string) => void;
+  actionUpdated: (page: Page, data: unknown, code: string) => void;
 };
+type RecorderContext = BrowserContext & {
+  _enableRecorder?: (opts: Record<string, unknown>, sink?: RecorderSink) => Promise<void>;
+};
+
+// Wrap recorded action lines in the same test shape `playwright codegen` emits, so the Codegen
+// page's parser handles cloud and local recordings identically.
+function toScript(actions: string[]): string {
+  if (!actions.length) return "";
+  const body = actions
+    .flatMap((code) => code.split("\n"))
+    .map((line) => (line.startsWith("  ") ? line : `  ${line}`)) // generator may pre-indent
+    .join("\n");
+  return `import { test, expect } from '@playwright/test';\n\ntest('test', async ({ page }) => {\n${body}\n});\n`;
+}
 
 // Untrusted input from the page — every field is validated before use.
 type ClientMsg = {
@@ -116,7 +132,7 @@ async function runSession(ws: WebSocket, userId: string) {
   let context: BrowserContext | undefined;
   let page: Page | undefined;
   let capture: Capture | undefined;
-  let dir: string | undefined;
+  const actions: string[] = [];
   let finished = false;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   const maxTimer = setTimeout(() => void finish("time limit reached"), MAX_SESSION_MS);
@@ -133,16 +149,13 @@ async function runSession(ws: WebSocket, userId: string) {
     clearTimeout(maxTimer);
     if (idleTimer) clearTimeout(idleTimer);
     capture?.stop();
-    let code = "";
     try {
       await context?.close();
-      if (dir) code = await readFile(join(dir, "recording.spec.ts"), "utf8").catch(() => "");
     } finally {
       await browser?.close().catch(() => {});
-      if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
       release();
     }
-    send({ type: "script", code, reason });
+    send({ type: "script", code: toScript(actions), reason });
     ws.close(1000, "done");
   }
 
@@ -160,13 +173,17 @@ async function runSession(ws: WebSocket, userId: string) {
     // SSRF: the user steers this browser — every request (incl. redirect hops) must be public.
     await guardContextNetwork(context, ALLOW_PRIVATE_HOSTS);
 
-    dir = await mkdtemp(join(tmpdir(), "testrify-rec-"));
-    await rc._enableRecorder({
-      language: "playwright-test",
-      mode: "recording",
-      outputFile: join(dir, "recording.spec.ts"),
-      handleSIGINT: false,
-    });
+    await rc._enableRecorder(
+      { language: "playwright-test", mode: "recording", recorderMode: "api" },
+      {
+        actionAdded: (_p, _d, code) => {
+          if (code) actions.push(code);
+        },
+        actionUpdated: (_p, _d, code) => {
+          if (code && actions.length) actions[actions.length - 1] = code;
+        },
+      },
+    );
 
     page = await context.newPage();
     // Keep the session to one tab: the live view shows a single page.
