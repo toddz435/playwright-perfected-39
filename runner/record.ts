@@ -22,6 +22,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { verifyLiveTicket } from "@/lib/live-ticket.server";
 import { assertPublicUrl } from "@/lib/ssrf.server";
+import { guardContextNetwork } from "@/lib/ssrf-route.server";
 import { acquireSlot, ConcurrencyError, RECORDER_LIMITS } from "@/lib/concurrency.server";
 import { startPageCapture, type Capture } from "./live";
 
@@ -156,38 +157,8 @@ async function runSession(ws: WebSocket, userId: string) {
       throw new Error("The cloud recorder isn't available in this Playwright version.");
     }
 
-    // SSRF: the user steers this browser, so every request (navigations AND subresources) must
-    // resolve to a public address. Decisions are cached per hostname for the session.
-    const hostOk = new Map<string, Promise<boolean>>();
-    const allowed = (u: URL) => {
-      if (u.protocol !== "http:" && u.protocol !== "https:") return Promise.resolve(false);
-      let ok = hostOk.get(u.hostname);
-      if (!ok) {
-        ok = assertPublicUrl(u.origin, ALLOW_PRIVATE_HOSTS).then(
-          () => true,
-          () => false,
-        );
-        hostOk.set(u.hostname, ok);
-      }
-      return ok;
-    };
-    await context.route("**/*", async (route) => {
-      const req = route.request();
-      const u = new URL(req.url());
-      if (u.protocol !== "http:" && u.protocol !== "https:") return route.continue();
-      if (!(await allowed(u))) return route.abort("blockedbyclient");
-      if (!req.isNavigationRequest()) return route.continue();
-      // Route handlers never see redirect hops, so a public page could 302 the browser to an
-      // internal address. For navigations, fetch with redirects OFF and vet each Location before
-      // handing the response back; the browser then follows it as a new (re-checked) request.
-      const resp = await route.fetch({ maxRedirects: 0 });
-      const loc = resp.headers()["location"];
-      if (resp.status() >= 300 && resp.status() < 400 && loc) {
-        const next = new URL(loc, u);
-        if (!(await allowed(next))) return route.abort("blockedbyclient");
-      }
-      return route.fulfill({ response: resp });
-    });
+    // SSRF: the user steers this browser — every request (incl. redirect hops) must be public.
+    await guardContextNetwork(context, ALLOW_PRIVATE_HOSTS);
 
     dir = await mkdtemp(join(tmpdir(), "testrify-rec-"));
     await rc._enableRecorder({
