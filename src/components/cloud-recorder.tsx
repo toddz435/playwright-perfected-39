@@ -7,12 +7,19 @@ import { Button } from "@/components/ui/button";
 // Codegen page feeds into its existing convert → harden → save pipeline.
 
 type Phase = "connecting" | "ready" | "stopping" | "done" | "error";
-type RecState = { phase: Phase; frame?: string; notice?: string; error?: string };
+type RecState = {
+  phase: Phase;
+  frame?: string;
+  notice?: string;
+  error?: string;
+  // The runner's browser viewport (from "ready") — desktop 1280×720 or the emulated device.
+  viewport?: { width: number; height: number };
+};
 type Out = Record<string, unknown> & { type: string };
 
-// The runner's browser viewport — the image is scaled, so pointer coords are mapped back to this.
-const VIEW_W = 1280;
-const VIEW_H = 720;
+// Default (desktop) viewport until the runner reports the real one — the image is scaled, so
+// pointer coords are mapped back to the viewport.
+const DEFAULT_VIEW = { width: 1280, height: 720 };
 // Runner errors meaning "the cloud can't reach this site" (SSRF refusal / no public DNS / no
 // route) — the CLI, which records on the user's own machine, is the answer for those.
 const UNREACHABLE_RE =
@@ -59,15 +66,22 @@ export function useCloudRecorder(onScript: (code: string, reason: string) => voi
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }, []);
 
-  const start = useCallback((wsUrl: string, pageUrl: string) => {
+  const start = useCallback((wsUrl: string, pageUrl: string, device?: string) => {
     wsRef.current?.close();
     setState({ phase: "connecting" });
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     let gotScript = false;
-    ws.onopen = () => ws.send(JSON.stringify({ type: "start", url: pageUrl }));
+    ws.onopen = () => ws.send(JSON.stringify({ type: "start", url: pageUrl, device }));
     ws.onmessage = (ev) => {
-      let msg: { type?: string; data?: string; message?: string; code?: string; reason?: string };
+      let msg: {
+        type?: string;
+        data?: string;
+        message?: string;
+        code?: string;
+        reason?: string;
+        viewport?: { width: number; height: number };
+      };
       try {
         msg = JSON.parse(ev.data);
       } catch {
@@ -78,7 +92,7 @@ export function useCloudRecorder(onScript: (code: string, reason: string) => voi
           setState((s) => (s ? { ...s, frame: msg.data } : s));
           break;
         case "ready":
-          setState((s) => (s ? { ...s, phase: "ready" } : s));
+          setState((s) => (s ? { ...s, phase: "ready", viewport: msg.viewport } : s));
           break;
         case "notice":
           setState((s) => (s ? { ...s, notice: msg.message } : s));
@@ -134,6 +148,9 @@ export function CloudRecorderPanel({
   const imgRef = useRef<HTMLImageElement>(null);
   const lastMove = useRef(0);
   const live = state.phase === "ready";
+  const view = state.viewport ?? DEFAULT_VIEW;
+  // Phones are taller than wide: size them by height so they don't fill a huge column.
+  const portrait = view.height > view.width;
   const [typed, setTyped] = useState("");
 
   // Countdown: the runner stops at 10 min total or 2 min without input; any input resets idle.
@@ -162,8 +179,8 @@ export function CloudRecorderPanel({
     const r = imgRef.current?.getBoundingClientRect();
     if (!r || !r.width || !r.height) return null;
     return {
-      x: Math.round(((e.clientX - r.left) / r.width) * VIEW_W),
-      y: Math.round(((e.clientY - r.top) / r.height) * VIEW_H),
+      x: Math.round(((e.clientX - r.left) / r.width) * view.width),
+      y: Math.round(((e.clientY - r.top) / r.height) * view.height),
     };
   };
   const buttonName = (b: number) => (b === 1 ? "middle" : b === 2 ? "right" : "left");
@@ -267,7 +284,7 @@ export function CloudRecorderPanel({
             src={`data:image/jpeg;base64,${state.frame}`}
             alt="Cloud browser — click and type here to record"
             draggable={false}
-            className={`w-full h-auto select-none ${live ? "cursor-pointer touch-none" : "opacity-80"}`}
+            className={`select-none ${portrait ? "h-[70vh] w-auto" : "w-full h-auto"} ${live ? "cursor-pointer touch-none" : "opacity-80"}`}
             onPointerMove={(e) => {
               if (!live) return;
               if (e.pointerType === "touch") {
@@ -280,7 +297,7 @@ export function CloudRecorderPanel({
                   t.scrolling = true;
                 if (t.scrolling) {
                   const r = imgRef.current?.getBoundingClientRect();
-                  const scale = r?.height ? VIEW_H / r.height : 1;
+                  const scale = r?.height ? view.height / r.height : 1;
                   input({ type: "wheel", dx: 0, dy: (t.lastY - e.clientY) * scale });
                   t.lastY = e.clientY;
                 }

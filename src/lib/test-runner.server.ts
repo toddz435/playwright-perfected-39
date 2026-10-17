@@ -9,6 +9,7 @@ import {
   type RunOptions,
 } from "@/lib/playwright-runner.server";
 import { healSelector } from "@/lib/heal.server";
+import { cleanDeviceId, type DeviceId } from "@/lib/devices";
 import { applyRecoveries } from "@/lib/recovery";
 import { interpolate, specVars, maskSecrets } from "@/lib/vars";
 import { jsonPathValue } from "@/lib/json-path";
@@ -218,6 +219,7 @@ export async function executeTest(
     noStabilize?: boolean;
     headless?: boolean; // false → headed "watch" run (local runner only)
     browser?: BrowserChoice;
+    device?: DeviceId; // per-run override; defaults to the test's saved spec.device
     onPage?: RunOptions["onPage"]; // live-view hooks (cloud runner) — see playwright-runner
     onStep?: RunOptions["onStep"];
     onBeforeClose?: RunOptions["onBeforeClose"];
@@ -226,6 +228,8 @@ export async function executeTest(
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
   const startIdx = Math.max(0, opts.startIdx ?? 0);
+  // Device: an explicit per-run choice wins (incl. "desktop"); else the test's saved default.
+  const runDevice = cleanDeviceId(opts.device !== undefined ? opts.device : test.spec?.device);
   const stepResults: any[] = [];
   let status: "passed" | "failed" = "passed";
   let stabilizedSteps: any[] | null = null;
@@ -325,6 +329,7 @@ export async function executeTest(
         heal,
         headless: opts.headless,
         browser: opts.browser,
+        device: runDevice,
         maxRunMs: Math.max(0, runDeadline - Date.now()),
         onPage: opts.onPage,
         onStep: opts.onStep,
@@ -366,6 +371,9 @@ export async function executeTest(
         failed: safeSteps.filter((s: any) => s.status === "failed").length,
         ...(attempts > 1 ? { attempts, maxAttempts: retries + 1 } : {}),
         ...(opts.scheduled ? { scheduled: true } : {}),
+        ...(test.type === "browser"
+          ? { browser: opts.browser ?? "chromium", device: runDevice ?? "desktop" }
+          : {}),
       },
     })
     .select()

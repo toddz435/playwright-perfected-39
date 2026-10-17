@@ -16,11 +16,18 @@ import {
   conditionLabel,
   type ConditionKind,
 } from "@/lib/conditions";
-import { isBlockMarker, validateBlocks, computeDepths, blockBounds, loopBounds } from "@/lib/blocks";
+import {
+  isBlockMarker,
+  validateBlocks,
+  computeDepths,
+  blockBounds,
+  loopBounds,
+} from "@/lib/blocks";
 import { advisoriesToMarkdown } from "@/lib/advisory-format";
 import { specVars } from "@/lib/vars";
 import { toast } from "sonner";
 import { useLiveView, LiveViewPanel } from "@/components/live-view";
+import { DEVICES, DEVICE_MATRIX_PRESETS, deviceLabel } from "@/lib/devices";
 import {
   ArrowLeft,
   Play,
@@ -47,6 +54,7 @@ import {
   EyeOff,
   Eye,
   Globe,
+  Smartphone,
   FileCode,
   Bug,
   Image as ImageIcon,
@@ -112,6 +120,16 @@ function TestDetail() {
   // live view streamed from the runner; the browser picker chooses the engine.
   const [watch, setWatch] = useState(false);
   const live = useLiveView();
+  // "Run on devices": a matrix of device × browser runs (presets in src/lib/devices.ts).
+  const [matrixOpen, setMatrixOpen] = useState(false);
+  const [matrixSel, setMatrixSel] = useState<number[]>([0, 3, 5]);
+  const [matrixResults, setMatrixResults] = useState<
+    Record<
+      number,
+      { status: "queued" | "running" | "passed" | "failed" | "error"; detail?: string }
+    >
+  >({});
+  const [matrixBusy, setMatrixBusy] = useState(false);
   const [browser, setBrowser] = useState("chromium");
   const [jiraBusy, setJiraBusy] = useState<string | null>(null); // runId currently being filed
   // Data-Driven Testing: the user's datasets (for the attach dropdown) + per-row run results.
@@ -236,6 +254,7 @@ function TestDetail() {
         resumeFromStep,
         watch: test.type === "browser" ? watch : undefined,
         browser: test.type === "browser" ? browser : undefined,
+        device: test.type === "browser" ? test.spec?.device || "desktop" : undefined,
         liveId,
       });
       if (liveId) live.settle(run.status);
@@ -478,9 +497,7 @@ function TestDetail() {
       { action: "endrepeat", _k: crypto.randomUUID() },
     ]);
   const patchLoop = (i: number, patch: any) =>
-    setDraft((d) =>
-      d.map((s, idx) => (idx === i ? { ...s, loop: { ...s.loop, ...patch } } : s)),
-    );
+    setDraft((d) => d.map((s, idx) => (idx === i ? { ...s, loop: { ...s.loop, ...patch } } : s)));
   // Inserts an `else` before the matching endif of the block containing marker i (once only).
   const addElse = (i: number) =>
     setDraft((d) => {
@@ -523,7 +540,11 @@ function TestDetail() {
           URL_CONDITION_KINDS.has(kind) !== URL_CONDITION_KINDS.has(s.condition?.kind);
         return {
           ...s,
-          condition: { ...s.condition, kind, ...(crossed ? { target: "", locator: undefined } : {}) },
+          condition: {
+            ...s.condition,
+            kind,
+            ...(crossed ? { target: "", locator: undefined } : {}),
+          },
         };
       }),
     );
@@ -642,6 +663,46 @@ function TestDetail() {
   };
 
   // Reliability: how many times to auto-retry a failed run (0–3). Persisted on the spec.
+  // Device emulation is saved on the test, so scheduled runs and Run all use it too.
+  const setDevice = async (device: string) => {
+    const newSpec = { ...test.spec, device: device === "desktop" ? undefined : device };
+    const { error } = await supabase.from("tests").update({ spec: newSpec }).eq("id", testId);
+    if (error) return toast.error(error.message);
+    setTest((t: any) => ({ ...t, spec: newSpec }));
+  };
+
+  // Run the selected device × browser presets, up to 3 at a time (the per-user run cap).
+  const runMatrix = async () => {
+    const picks = [...matrixSel].sort((a, b) => a - b);
+    if (!picks.length) return toast.error("Pick at least one device.");
+    setMatrixBusy(true);
+    setMatrixResults(Object.fromEntries(picks.map((i) => [i, { status: "queued" as const }])));
+    const queue = [...picks];
+    const worker = async () => {
+      for (let i = queue.shift(); i !== undefined; i = queue.shift()) {
+        const p = DEVICE_MATRIX_PRESETS[i];
+        setMatrixResults((r) => ({ ...r, [i]: { status: "running" } }));
+        try {
+          const { run } = await apiCall<any>("/api/protected/run-test", {
+            testId,
+            browser: p.browser,
+            device: p.device,
+          });
+          const failed = (run.steps || []).find((st: any) => st.status === "failed");
+          setMatrixResults((r) => ({
+            ...r,
+            [i]: { status: run.status, detail: failed?.error?.split("\n")[0] },
+          }));
+        } catch (e: any) {
+          setMatrixResults((r) => ({ ...r, [i]: { status: "error", detail: e.message } }));
+        }
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    setMatrixBusy(false);
+    refresh();
+  };
+
   const setRetries = async (n: number) => {
     const newSpec = { ...test.spec, retries: n };
     const { error } = await supabase.from("tests").update({ spec: newSpec }).eq("id", testId);
@@ -665,7 +726,10 @@ function TestDetail() {
     try {
       const r = await apiCall<any>("/api/protected/run-dataset", { testId });
       setDatasetResults(r);
-      const extra = [r.errored ? `${r.errored} errored` : "", r.skipped ? `${r.skipped} skipped` : ""]
+      const extra = [
+        r.errored ? `${r.errored} errored` : "",
+        r.skipped ? `${r.skipped} skipped` : "",
+      ]
         .filter(Boolean)
         .join(", ");
       const msg = `${r.passed}/${r.rows} rows passed${r.failed ? `, ${r.failed} failed` : ""}${extra ? `, ${extra}` : ""}`;
@@ -701,7 +765,14 @@ function TestDetail() {
         if (URL_ACTIONS.has(s.action)) {
           const v = s.target ?? "";
           if (!v || v.includes("{{")) return null;
-          return { idx: i, action: s.action, kind: "url" as const, literal: v, field: s.action, step: s };
+          return {
+            idx: i,
+            action: s.action,
+            kind: "url" as const,
+            literal: v,
+            field: s.action,
+            step: s,
+          };
         }
         return null;
       })
@@ -794,7 +865,10 @@ function TestDetail() {
         .single();
       if (dsErr || !ds) throw new Error(dsErr?.message || "Could not create dataset.");
       const newSpec = { ...test.spec, steps, datasetId: ds.id };
-      const { error: tErr } = await supabase.from("tests").update({ spec: newSpec }).eq("id", testId);
+      const { error: tErr } = await supabase
+        .from("tests")
+        .update({ spec: newSpec })
+        .eq("id", testId);
       if (tErr) throw new Error(tErr.message);
       toast.success(
         `Created "${name}" (${columns.length} column${columns.length === 1 ? "" : "s"}) and bound ${chosen.length} field${chosen.length === 1 ? "" : "s"}.`,
@@ -879,6 +953,36 @@ function TestDetail() {
                   <option value="webkit">WebKit (Safari)</option>
                 </select>
               </label>
+            )}
+            {test.type === "browser" && (
+              <label
+                className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
+                title="Emulate a phone or tablet: its screen size, pixel density, touch and mobile user agent, so the site serves its mobile version. Saved with the test (scheduled runs use it too). Tip: pair iPhone/iPad with WebKit (Safari's engine) and Android with Chromium."
+              >
+                <Smartphone className="h-3.5 w-3.5" />
+                Device
+                <select
+                  value={test.spec?.device || "desktop"}
+                  onChange={(e) => setDevice(e.target.value)}
+                  className="bg-input/50 border border-border rounded-md px-2 py-1 text-xs"
+                >
+                  {DEVICES.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {test.type === "browser" && (
+              <Button
+                variant="outline"
+                disabled={running || matrixBusy}
+                onClick={() => setMatrixOpen((o) => !o)}
+                title="Run this test on several devices and browsers at once — mobile cross-browser testing."
+              >
+                <Smartphone className="h-4 w-4 mr-1" /> Run on devices
+              </Button>
             )}
             {test.type === "browser" && (
               <label
@@ -1012,6 +1116,78 @@ function TestDetail() {
 
       {live.state && <LiveViewPanel state={live.state} onClose={live.close} />}
 
+      {matrixOpen && test.type === "browser" && (
+        <section className="glass rounded-xl p-5 shadow-card space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-semibold flex items-center gap-2">
+              <Smartphone className="h-4 w-4 text-primary-glow" /> Run on devices
+            </h2>
+            <Button
+              size="sm"
+              disabled={matrixBusy || !matrixSel.length}
+              onClick={runMatrix}
+              className="bg-gradient-primary border-0"
+            >
+              {matrixBusy ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-1" />
+              )}
+              Run {matrixSel.length} {matrixSel.length === 1 ? "combination" : "combinations"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Each runs as its own test run (they appear in Recent runs below), up to 3 at a time.
+            iPhone/iPad use WebKit — Safari's engine; Android uses Chromium — Chrome's engine.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {DEVICE_MATRIX_PRESETS.map((p, i) => {
+              const res = matrixResults[i];
+              return (
+                <label
+                  key={p.label}
+                  className="flex items-start gap-2 rounded-lg border border-border bg-surface/40 px-3 py-2 text-sm cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    disabled={matrixBusy}
+                    checked={matrixSel.includes(i)}
+                    onChange={(e) =>
+                      setMatrixSel((sel) =>
+                        e.target.checked ? [...sel, i] : sel.filter((x) => x !== i),
+                      )
+                    }
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className="block">{p.label}</span>
+                    {res && (
+                      <span
+                        className={`block text-xs truncate ${
+                          res.status === "passed"
+                            ? "text-green-500"
+                            : res.status === "failed" || res.status === "error"
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                        }`}
+                        title={res.detail}
+                      >
+                        {res.status === "running"
+                          ? "Running…"
+                          : res.status === "queued"
+                            ? "Queued"
+                            : res.status}
+                        {res.detail ? ` — ${res.detail}` : ""}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* DDT: parameterize-from-recording wizard */}
       {paramOpen && (
         <section className="glass rounded-2xl p-6 shadow-card border border-primary/20">
@@ -1021,8 +1197,8 @@ function TestDetail() {
                 <Braces className="h-4 w-4 text-primary-glow" /> Data-drive from recording
               </h2>
               <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-                Turn recorded values into <code className="text-primary-glow">{"{{columns}}"}</code>.
-                We&apos;ll create a dataset seeded with these values as row 1, bind each chosen
+                Turn recorded values into <code className="text-primary-glow">{"{{columns}}"}</code>
+                . We&apos;ll create a dataset seeded with these values as row 1, bind each chosen
                 field, and attach it — then fill the sheet and run once per row.
               </p>
             </div>
@@ -1306,8 +1482,8 @@ function TestDetail() {
             </Button>
             {varRows.some((r) => r.secret) && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <EyeOff className="h-3.5 w-3.5" /> Secrets are encrypted at rest and can't be
-                viewed — only replaced.
+                <EyeOff className="h-3.5 w-3.5" /> Secrets are encrypted at rest and can't be viewed
+                — only replaced.
               </span>
             )}
           </div>
@@ -1466,7 +1642,8 @@ function TestDetail() {
                                 value={s.loop?.count ?? ""}
                                 onChange={(e) =>
                                   patchLoop(i, {
-                                    count: e.target.value === "" ? undefined : Number(e.target.value),
+                                    count:
+                                      e.target.value === "" ? undefined : Number(e.target.value),
                                   })
                                 }
                                 className="bg-input/50 text-xs font-mono w-20"
@@ -1543,7 +1720,9 @@ function TestDetail() {
                   ) : (
                     <>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}</span>
+                        <span className="text-xs text-muted-foreground w-5 text-right">
+                          {i + 1}
+                        </span>
                         <select
                           value={s.action}
                           onChange={(e) => onActionChange(i, e.target.value)}
@@ -1754,8 +1933,8 @@ function TestDetail() {
       {datasetResults && (
         <section className="glass rounded-2xl p-6 shadow-card">
           <h2 className="font-semibold text-lg mb-3 flex items-center gap-2">
-            <Database className="h-4 w-4 text-primary-glow" /> Dataset run — {datasetResults.passed}/
-            {datasetResults.rows} rows passed
+            <Database className="h-4 w-4 text-primary-glow" /> Dataset run — {datasetResults.passed}
+            /{datasetResults.rows} rows passed
           </h2>
           <div className="grid gap-1.5">
             {datasetResults.results.map((r: any) => {
@@ -1778,11 +1957,7 @@ function TestDetail() {
                   <span className="flex-1 truncate">{r.label}</span>
                   <span
                     className={
-                      ok
-                        ? "text-success"
-                        : skipped
-                          ? "text-muted-foreground"
-                          : "text-destructive"
+                      ok ? "text-success" : skipped ? "text-muted-foreground" : "text-destructive"
                     }
                   >
                     {ok ? "passed" : skipped ? r.skipped : errored ? r.error : r.status}
@@ -1823,6 +1998,16 @@ function TestDetail() {
                           className="border-amber-500/40 text-amber-500 gap-1"
                         >
                           <Wand2 className="h-3 w-3" /> {r.summary.healed} auto-healed
+                        </Badge>
+                      )}
+                      {r.summary?.device && (
+                        <Badge
+                          variant="outline"
+                          className="gap-1"
+                          title="Device and browser this run used"
+                        >
+                          {r.summary.device !== "desktop" && <Smartphone className="h-3 w-3" />}
+                          {deviceLabel(r.summary.device)} · {r.summary.browser}
                         </Badge>
                       )}
                       {(r.summary?.attempts ?? 1) > 1 && (

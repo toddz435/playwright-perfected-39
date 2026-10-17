@@ -5,6 +5,7 @@
 // Variables: a {{name}} that's a known plain test variable is inlined as its value; anything else
 // (a secret, a dataset column, or an unknown) becomes `process.env["name"]` so the exported test
 // is parameterized and NO secret is ever baked into the code.
+import { deviceInfo } from "@/lib/devices";
 import { specVars } from "@/lib/vars";
 import { isBlockMarker } from "@/lib/blocks";
 import { conditionLabel } from "@/lib/conditions";
@@ -27,9 +28,7 @@ export function emitValue(raw: string, vars: Record<string, string>): string {
   TOKEN.lastIndex = 0;
   while ((m = TOKEN.exec(raw))) {
     out += esc(raw.slice(last, m.index));
-    out += known(m[1])
-      ? esc(vars[m[1]] ?? "")
-      : `\${process.env[${JSON.stringify(m[1])}] ?? ""}`;
+    out += known(m[1]) ? esc(vars[m[1]] ?? "") : `\${process.env[${JSON.stringify(m[1])}] ?? ""}`;
     last = m.index + m[0].length;
   }
   out += esc(raw.slice(last));
@@ -148,7 +147,18 @@ export function exportToPlaywright(test: any): string {
     }
   }
 
-  const header: string[] = [`import { test, expect } from '@playwright/test';`, ""];
+  // Device emulation: same Playwright descriptor the cloud run uses (see src/lib/devices.ts).
+  const device = deviceInfo(test?.spec?.device);
+  const header: string[] = device?.playwright
+    ? [
+        `import { test, expect, devices } from '@playwright/test';`,
+        "",
+        `// Emulates ${device.label} (screen size, touch, mobile user agent). For the real device's`,
+        `// engine, run it on ${device.nativeBrowser === "webkit" ? "WebKit (Safari)" : "Chromium (Chrome)"}, e.g. --project=${device.nativeBrowser}.`,
+        `test.use({ ...devices[${JSON.stringify(device.playwright)}] });`,
+        "",
+      ]
+    : [`import { test, expect } from '@playwright/test';`, ""];
   if (usesEnv)
     header.push(
       `// Some values come from secret/parameterized variables — set them as environment`,
