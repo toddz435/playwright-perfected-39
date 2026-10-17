@@ -13,8 +13,22 @@ type Out = Record<string, unknown> & { type: string };
 // The runner's browser viewport — the image is scaled, so pointer coords are mapped back to this.
 const VIEW_W = 1280;
 const VIEW_H = 720;
+// Runner errors meaning "the cloud can't reach this site" (SSRF refusal / no public DNS / no
+// route) — the CLI, which records on the user's own machine, is the answer for those.
+const UNREACHABLE_RE =
+  /private\/internal|Could not resolve host|ERR_NAME_NOT_RESOLVED|ERR_ADDRESS_UNREACHABLE|ERR_CONNECTION_REFUSED|ERR_BLOCKED_BY_CLIENT/i;
 // Mouse moves are throttled; the recorder needs them to know which element is under the pointer.
 const MOVE_GAP_MS = 40;
+// Mirror the runner's session limits (runner/record.ts) for the on-screen countdown.
+const MAX_SESSION_MS = 10 * 60 * 1000;
+const IDLE_MS = 2 * 60 * 1000;
+// A touch that moves further than this is a scroll, not a tap.
+const TAP_SLOP_PX = 8;
+
+const mmss = (ms: number) => {
+  const t = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+};
 // Keys the runner accepts by name (see NAMED_KEYS in runner/record.ts); printable keys go as text.
 const NAMED = new Set([
   "Enter",
@@ -120,6 +134,28 @@ export function CloudRecorderPanel({
   const imgRef = useRef<HTMLImageElement>(null);
   const lastMove = useRef(0);
   const live = state.phase === "ready";
+  const [typed, setTyped] = useState("");
+
+  // Countdown: the runner stops at 10 min total or 2 min without input; any input resets idle.
+  const startedAt = useRef(0);
+  const lastInput = useRef(0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!live) return;
+    startedAt.current = startedAt.current || Date.now();
+    lastInput.current = Date.now();
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [live]);
+  const input = (msg: Out) => {
+    lastInput.current = Date.now();
+    send(msg);
+  };
+  const totalLeft = MAX_SESSION_MS - (now - startedAt.current);
+  const idleLeft = IDLE_MS - (now - lastInput.current);
+
+  // Touch: a tap is a click; a drag scrolls the page. Tracked per gesture.
+  const touch = useRef<{ x: number; y: number; lastY: number; scrolling: boolean } | null>(null);
 
   // Map a pointer event on the (scaled) image to the runner's 1280×720 viewport.
   const toView = (e: { clientX: number; clientY: number }) => {
@@ -138,6 +174,7 @@ export function CloudRecorderPanel({
     if (!el || !live) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      lastInput.current = Date.now();
       send({ type: "wheel", dx: e.deltaX, dy: e.deltaY });
     };
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -148,9 +185,9 @@ export function CloudRecorderPanel({
     if (!live) return;
     const mod = e.ctrlKey || e.metaKey || e.altKey;
     if (e.key.length === 1 && !mod) {
-      send({ type: "text", text: e.key });
+      input({ type: "text", text: e.key });
     } else if (NAMED.has(e.key)) {
-      send({ type: "key", key: e.key });
+      input({ type: "key", key: e.key });
     } else if (mod && /^[a-z0-9]$/i.test(e.key)) {
       // ⌘V / Ctrl+V is handled by onPaste (real clipboard text) — don't also send the combo.
       if (e.key.toLowerCase() === "v") return;
@@ -162,7 +199,7 @@ export function CloudRecorderPanel({
       ]
         .filter(Boolean)
         .join("+");
-      send({ type: "key", key: `${combo}+${e.key}` });
+      input({ type: "key", key: `${combo}+${e.key}` });
     } else {
       return;
     }
@@ -191,6 +228,16 @@ export function CloudRecorderPanel({
           </span>
           {state.notice && <span className="text-muted-foreground truncate">— {state.notice}</span>}
         </div>
+        {live && (
+          <span
+            className={`text-xs tabular-nums shrink-0 ${idleLeft < 30_000 ? "text-amber-500" : "text-muted-foreground"}`}
+            title="Recording stops automatically after 10 minutes, or 2 minutes without activity."
+          >
+            {idleLeft < 30_000
+              ? `No activity — stopping in ${mmss(idleLeft)}`
+              : `${mmss(totalLeft)} left`}
+          </span>
+        )}
         {live || state.phase === "stopping" ? (
           <Button size="sm" variant="destructive" disabled={!live} onClick={onStop}>
             <Square className="h-3.5 w-3.5 mr-1" /> Stop recording
@@ -208,7 +255,7 @@ export function CloudRecorderPanel({
         onPaste={(e) => {
           if (!live) return;
           const text = e.clipboardData.getData("text").slice(0, 1000);
-          if (text) send({ type: "text", text });
+          if (text) input({ type: "text", text });
           e.preventDefault();
         }}
         onContextMenu={(e) => e.preventDefault()}
@@ -220,39 +267,117 @@ export function CloudRecorderPanel({
             src={`data:image/jpeg;base64,${state.frame}`}
             alt="Cloud browser — click and type here to record"
             draggable={false}
-            className={`w-full h-auto select-none ${live ? "cursor-pointer" : "opacity-80"}`}
-            onMouseMove={(e) => {
+            className={`w-full h-auto select-none ${live ? "cursor-pointer touch-none" : "opacity-80"}`}
+            onPointerMove={(e) => {
               if (!live) return;
-              const now = Date.now();
-              if (now - lastMove.current < MOVE_GAP_MS) return;
-              lastMove.current = now;
+              if (e.pointerType === "touch") {
+                const t = touch.current;
+                if (!t) return;
+                if (
+                  !t.scrolling &&
+                  Math.abs(e.clientY - t.y) + Math.abs(e.clientX - t.x) > TAP_SLOP_PX
+                )
+                  t.scrolling = true;
+                if (t.scrolling) {
+                  const r = imgRef.current?.getBoundingClientRect();
+                  const scale = r?.height ? VIEW_H / r.height : 1;
+                  input({ type: "wheel", dx: 0, dy: (t.lastY - e.clientY) * scale });
+                  t.lastY = e.clientY;
+                }
+                return;
+              }
+              const ts = Date.now();
+              if (ts - lastMove.current < MOVE_GAP_MS) return;
+              lastMove.current = ts;
               const p = toView(e);
-              if (p) send({ type: "mouse", action: "move", ...p });
+              if (p) input({ type: "mouse", action: "move", ...p });
             }}
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               if (!live) return;
               e.preventDefault();
+              if (e.pointerType === "touch") {
+                touch.current = { x: e.clientX, y: e.clientY, lastY: e.clientY, scrolling: false };
+                // Hover first so the recorder knows which element a tap will hit.
+                const p = toView(e);
+                if (p) input({ type: "mouse", action: "move", ...p });
+                return;
+              }
               boxRef.current?.focus();
               const p = toView(e);
-              if (p) send({ type: "mouse", action: "down", button: buttonName(e.button), ...p });
+              if (p) input({ type: "mouse", action: "down", button: buttonName(e.button), ...p });
             }}
-            onMouseUp={(e) => {
+            onPointerUp={(e) => {
               if (!live) return;
+              if (e.pointerType === "touch") {
+                const t = touch.current;
+                touch.current = null;
+                if (!t || t.scrolling) return;
+                const p = toView({ clientX: t.x, clientY: t.y });
+                if (!p) return;
+                input({ type: "mouse", action: "down", button: "left", ...p });
+                input({ type: "mouse", action: "up", button: "left", ...p });
+                return;
+              }
               const p = toView(e);
-              if (p) send({ type: "mouse", action: "up", button: buttonName(e.button), ...p });
+              if (p) input({ type: "mouse", action: "up", button: buttonName(e.button), ...p });
             }}
           />
-        ) : (
+        ) : state.phase === "error" ? null : (
           <div className="aspect-video w-full flex items-center justify-center text-sm text-white/60">
-            {state.phase === "error" ? "" : "Opening the page…"}
+            Opening the page…
           </div>
         )}
       </div>
       {live && (
-        <p className="px-4 py-2 text-xs text-muted-foreground border-t border-border">
-          Click the page to interact; while it's selected your typing goes to the page. Recording
-          stops automatically after 10 minutes, or 2 minutes without activity.
-        </p>
+        <div className="px-4 py-2 border-t border-border space-y-2">
+          {/* Typing box: phones/tablets show no keyboard for an image; also handy on desktop. */}
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (typed) input({ type: "text", text: typed.slice(0, 1000) });
+              setTyped("");
+            }}
+          >
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder="Type into the page (tap a field first)…"
+              className="flex-1 min-w-0 bg-input/50 border border-border rounded-md px-2 py-1 text-sm"
+            />
+            <Button type="submit" size="sm" variant="outline" disabled={!typed}>
+              Type
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => input({ type: "key", key: "Enter" })}
+              title="Press Enter in the page"
+            >
+              Enter ↵
+            </Button>
+          </form>
+          <p className="text-xs text-muted-foreground">
+            Click (or tap) the page to interact; while it's selected your typing goes straight to
+            the page. Drag to scroll on touch screens.
+          </p>
+        </div>
+      )}
+      {state.phase === "error" && UNREACHABLE_RE.test(state.error || "") && (
+        <div className="px-4 py-3 text-sm border-t border-border space-y-1">
+          <div className="font-medium">Testing an internal or local site?</div>
+          <div className="text-muted-foreground">
+            The cloud browser can only reach public websites. Record it from your own computer with
+            the Testrify CLI — it uploads the test to your account just the same:
+          </div>
+          <code className="block text-xs bg-surface/60 rounded px-2 py-1">
+            testrify record &lt;url&gt; --project "My app"
+          </code>
+          <a href="/docs#cli" className="text-xs text-primary-glow hover:underline">
+            How the CLI works →
+          </a>
+        </div>
       )}
     </div>
   );

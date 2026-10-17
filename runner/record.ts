@@ -64,6 +64,17 @@ type RecorderContext = BrowserContext & {
   _enableRecorder?: (opts: Record<string, unknown>, sink?: RecorderSink) => Promise<void>;
 };
 
+// Init script (as source text — see the addInitScript call) hiding the recorder overlay host.
+const HIDE_RECORDER_OVERLAY_JS = `(() => {
+  const add = () => {
+    const st = document.createElement("style");
+    st.textContent = "x-pw-glass{display:none!important}";
+    (document.head || document.documentElement).appendChild(st);
+  };
+  if (document.documentElement) add();
+  else document.addEventListener("DOMContentLoaded", add, { once: true });
+})();`;
+
 // Wrap recorded action lines in the same test shape `playwright codegen` emits, so the Codegen
 // page's parser handles cloud and local recordings identically.
 function toScript(actions: string[]): string {
@@ -185,7 +196,20 @@ async function runSession(ws: WebSocket, userId: string) {
       },
     );
 
+    // Hide Playwright's in-page recorder overlay (its toolbar would be streamed AND clickable —
+    // one click on its record button stops recording). The client protocol drops the server's
+    // hideToolbar option and the toolbar lives in a closed shadow root, so hide the overlay's
+    // light-DOM host instead. Recording itself uses document listeners and is unaffected.
+    // Passed as a STRING: tsx (which runs the runner) rewrites functions with a __name helper
+    // that doesn't exist in the page, which would make a function init script fail silently.
+    await context.addInitScript({ content: HIDE_RECORDER_OVERLAY_JS });
     page = await context.newPage();
+    // Init scripts don't run on navigations the SSRF guard fulfils via route.fetch (e.g. the page
+    // after a login redirect), so also add the rule on every load. (Recording is unaffected —
+    // Playwright injects its recorder through a different mechanism.)
+    page.on("domcontentloaded", (p) => {
+      p.addStyleTag({ content: "x-pw-glass{display:none!important}" }).catch(() => {});
+    });
     // Keep the session to one tab: the live view shows a single page.
     context.on("page", (p) => {
       if (p !== page) {

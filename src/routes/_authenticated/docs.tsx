@@ -14,6 +14,7 @@ import {
   Globe,
   FileCode,
   Plug,
+  Terminal,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -31,7 +32,8 @@ const SECTIONS: Section[] = [
     blurb:
       "Capture a flow on a real browser, then keep it passing when the page changes underneath it.",
     items: [
-      "Record a flow on any URL in Codegen → converted to resilient role / text / test-id selectors.",
+      "Record in your browser: Codegen → Record opens the site in a cloud browser right on the page — click and type, then Stop. Nothing to install.",
+      "Recordings are converted to resilient role / text / test-id selectors; recorded passwords become {{secret}} variables.",
       "When a locator breaks, Testrify tries stored fallbacks, then an AI heal, and continues from the failed step — not a full restart.",
       "“Harden locators” validates each selector against the live page; “data-testid advice” flags the brittle ones.",
     ],
@@ -39,7 +41,8 @@ const SECTIONS: Section[] = [
   {
     icon: GitBranch,
     title: "Test logic",
-    blurb: "Real control flow — your tests can branch, repeat, and adapt, not just run top to bottom.",
+    blurb:
+      "Real control flow — your tests can branch, repeat, and adapt, not just run top to bottom.",
     items: [
       "Variables: reference {{name}} in any locator, value, or URL.",
       "Secret variables: encrypted at rest, masked in run records, never sent to the AI.",
@@ -72,7 +75,7 @@ const SECTIONS: Section[] = [
     blurb: "Hardened for a shared/cloud deployment from the ground up.",
     items: [
       "Secret values encrypted at rest (AES-256-GCM); the key never leaves the server.",
-      "SSRF protection: recorded and API-test URLs are resolved and refused if they point at private/internal addresses.",
+      "SSRF protection: every request the cloud browser makes (including redirects) is refused if it points at a private/internal address — record internal sites with the CLI instead.",
       "Per-user and global concurrency caps so no one can exhaust the runner.",
     ],
   },
@@ -90,19 +93,19 @@ const SECTIONS: Section[] = [
     title: "Watch & cross-browser",
     blurb: "See it run, on the engine your users actually use.",
     items: [
-      "“Watch” opens a real browser and runs in slow-motion so you can see every step (local runner).",
+      "“Watch” shows the run live on the test page — the cloud browser streams step by step (on a local runner it opens a real browser window instead).",
       "Pick the engine: Chromium, Firefox, or WebKit (Safari) — plus real Chrome / Edge where installed.",
       "Headless and fast by default; flip Watch on per run when you want eyes on it.",
     ],
   },
   {
     icon: FileCode,
-    title: "Export & local CLI",
+    title: "Export",
     blurb: "Take your tests with you — no lock-in.",
     items: [
       "Export any test to clean, human-readable native Playwright TypeScript (.spec.ts).",
-      "Run the testrify CLI to auto-heal broken locators on your machine, so you push code that already passes CI.",
       "Secret values export as process.env references — never baked into the file.",
+      "Exported specs run anywhere Playwright runs — and the Testrify CLI can auto-heal them locally (below).",
     ],
   },
   {
@@ -166,6 +169,62 @@ function Docs() {
           </section>
         ))}
       </div>
+
+      {/* Featured: Testrify CLI — for power users and sites the cloud can't reach */}
+      <section id="cli" className="glass rounded-xl p-6 shadow-card border border-primary/30">
+        <h2 className="font-semibold text-xl flex items-center gap-2">
+          <Terminal className="h-5 w-5 text-primary-glow" /> Testrify CLI — power users &amp;
+          internal sites
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Most people never need it: recording and running work entirely in the browser. The CLI is
+          for when the site you test <strong>isn’t reachable from the internet</strong>, or you want
+          Testrify in your own terminal and CI. It runs on <em>your</em> machine, so it can reach
+          anything you can.
+        </p>
+        <div className="mt-4 grid md:grid-cols-2 gap-3">
+          <div className="rounded-lg border border-border bg-surface/40 p-3">
+            <div className="font-medium text-sm">Use the CLI when you’re testing…</div>
+            <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+              <li>• an internal or staging site on your company network / VPN</li>
+              <li>• an app running on your own computer (localhost)</li>
+              <li>• anything the cloud browser refuses as a private address</li>
+              <li>• exported specs in your repo, healed before you push to CI</li>
+            </ul>
+          </div>
+          <div className="rounded-lg border border-border bg-surface/40 p-3">
+            <div className="font-medium text-sm">Commands</div>
+            <ul className="mt-2 space-y-2 text-sm">
+              <li>
+                <code className="text-xs">testrify login</code>
+                <div className="text-muted-foreground">
+                  Sign in to your Testrify account (once).
+                </div>
+              </li>
+              <li>
+                <code className="text-xs">testrify record &lt;url&gt; --project "My app"</code>
+                <div className="text-muted-foreground">
+                  Opens a browser on your machine; close it and the test uploads to your account and
+                  opens here — same converter, same {"{{secret}}"} password protection.
+                </div>
+              </li>
+              <li>
+                <code className="text-xs">testrify heal &lt;spec.ts&gt;</code>
+                <div className="text-muted-foreground">
+                  Runs an exported spec and auto-heals broken locators with AI (your own Anthropic
+                  key; page HTML is redacted before it leaves your machine).
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground mt-3">
+          Tests recorded with the CLI run in the cloud like any other test — as long as the cloud
+          can reach the site. For internal-only sites, use <strong>Export TS</strong> and run the
+          spec on your machine or in your CI with Playwright (or{" "}
+          <code className="text-xs">testrify heal</code> to run it and fix broken locators).
+        </p>
+      </section>
 
       {/* Featured: Data-Driven Testing */}
       <section className="glass rounded-xl p-6 shadow-card border border-primary/30">

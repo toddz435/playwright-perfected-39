@@ -49,6 +49,8 @@ function Codegen() {
 
   // Cloud recorder (production): an interactive browser streamed into this page.
   const cloud = useCloudRecorder((code, reason) => {
+    // A failed start already shows its error (and the CLI tip) in the panel.
+    if (reason === "error") return;
     if (!code.trim()) {
       toast.error("Nothing was recorded.");
       return;
@@ -211,7 +213,7 @@ function Codegen() {
           <p className="text-xs text-muted-foreground">
             {recording
               ? "Recording… a browser + Playwright Inspector opened on this machine. Click around, then CLOSE the browser window — the captured steps appear here only after you close it."
-              : "Opens the page in a cloud browser right here — click and type to record, then Stop. Nothing to install. (On a local server it opens a Chromium window on this machine instead.)"}
+              : "Opens the page in a cloud browser right here — click and type to record, then Stop. Nothing to install. Internal, VPN or localhost site? Record it with the Testrify CLI (see Docs). (On a local server it opens a Chromium window on this machine instead.)"}
           </p>
         )}
       </section>
