@@ -26,7 +26,7 @@ import {
 import { advisoriesToMarkdown } from "@/lib/advisory-format";
 import { specVars } from "@/lib/vars";
 import { toast } from "sonner";
-import { useLiveView, LiveViewPanel } from "@/components/live-view";
+import { useLiveView, LiveViewPanel, connectLive } from "@/components/live-view";
 import { DEVICES, DEVICE_MATRIX_PRESETS, deviceLabel } from "@/lib/devices";
 import {
   ArrowLeft,
@@ -55,6 +55,7 @@ import {
   Eye,
   Globe,
   Smartphone,
+  Radio,
   FileCode,
   Bug,
   Image as ImageIcon,
@@ -126,7 +127,12 @@ function TestDetail() {
   const [matrixResults, setMatrixResults] = useState<
     Record<
       number,
-      { status: "queued" | "running" | "passed" | "failed" | "error"; detail?: string }
+      {
+        status: "queued" | "running" | "passed" | "failed" | "error";
+        detail?: string;
+        frame?: string; // latest live frame of this combo's cloud browser (kept after it ends)
+        step?: string;
+      }
     >
   >({});
   const [matrixBusy, setMatrixBusy] = useState(false);
@@ -681,20 +687,44 @@ function TestDetail() {
     const worker = async () => {
       for (let i = queue.shift(); i !== undefined; i = queue.shift()) {
         const p = DEVICE_MATRIX_PRESETS[i];
-        setMatrixResults((r) => ({ ...r, [i]: { status: "running" } }));
+        const patch = (u: Partial<(typeof matrixResults)[number]>) =>
+          setMatrixResults((r) => ({ ...r, [i]: { ...r[i], ...u } }));
+        patch({ status: "running" });
+        // Live screen for this combo (cloud only — locally the ticket says { local: true }).
+        let live: { close: () => void } | null = null;
+        let liveId: string | undefined;
+        try {
+          const id = crypto.randomUUID();
+          const ticket = await apiCall<any>("/api/protected/live-ticket", { liveId: id });
+          if (ticket?.url) {
+            const conn = connectLive(ticket.url, {
+              frame: (frame) => patch({ frame }),
+              step: (st) =>
+                patch({
+                  step: `Step ${st.idx + 1}/${st.total}: ${st.action}${st.target ? ` ${st.target}` : ""}`,
+                }),
+            });
+            live = conn;
+            liveId = id;
+            await conn.ready;
+          }
+        } catch {
+          // live view is best-effort — the run still happens
+        }
         try {
           const { run } = await apiCall<any>("/api/protected/run-test", {
             testId,
             browser: p.browser,
             device: p.device,
+            liveId,
           });
           const failed = (run.steps || []).find((st: any) => st.status === "failed");
-          setMatrixResults((r) => ({
-            ...r,
-            [i]: { status: run.status, detail: failed?.error?.split("\n")[0] },
-          }));
+          patch({ status: run.status, detail: failed?.error?.split("\n")[0], step: undefined });
         } catch (e: any) {
-          setMatrixResults((r) => ({ ...r, [i]: { status: "error", detail: e.message } }));
+          patch({ status: "error", detail: e.message, step: undefined });
+        } finally {
+          // Let the final frame land before closing.
+          setTimeout(() => live?.close(), 1500);
         }
       }
     };
@@ -1185,6 +1215,63 @@ function TestDetail() {
               );
             })}
           </div>
+          {Object.keys(matrixResults).length > 0 && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+              {Object.entries(matrixResults)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([key, res]) => {
+                  const p = DEVICE_MATRIX_PRESETS[Number(key)];
+                  return (
+                    <div
+                      key={key}
+                      className="rounded-lg border border-border bg-card overflow-hidden"
+                    >
+                      <div className="px-3 py-2 text-xs border-b border-border flex items-center justify-between gap-2">
+                        <span className="font-medium truncate">{p.label}</span>
+                        <span
+                          className={
+                            res.status === "passed"
+                              ? "text-green-500"
+                              : res.status === "failed" || res.status === "error"
+                                ? "text-destructive"
+                                : "text-muted-foreground"
+                          }
+                        >
+                          {res.status === "running" ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Radio className="h-3 w-3 text-red-500 animate-pulse" /> Live
+                            </span>
+                          ) : (
+                            res.status
+                          )}
+                        </span>
+                      </div>
+                      <div className="bg-black/90 h-72 flex items-center justify-center">
+                        {res.frame ? (
+                          <img
+                            src={`data:image/jpeg;base64,${res.frame}`}
+                            alt={`${p.label} screen`}
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        ) : (
+                          <span className="text-xs text-white/50">
+                            {res.status === "queued" ? "Waiting for a free slot…" : "Starting…"}
+                          </span>
+                        )}
+                      </div>
+                      {(res.step || res.detail) && (
+                        <div
+                          className={`px-3 py-1.5 text-xs truncate ${res.detail ? "text-destructive" : "text-muted-foreground"}`}
+                          title={res.detail || res.step}
+                        >
+                          {res.detail || res.step}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </section>
       )}
 
