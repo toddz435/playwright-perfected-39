@@ -27,7 +27,8 @@ import { advisoriesToMarkdown } from "@/lib/advisory-format";
 import { specVars } from "@/lib/vars";
 import { toast } from "sonner";
 import { useLiveView, LiveViewPanel, connectLive } from "@/components/live-view";
-import { DEVICES, DEVICE_MATRIX_PRESETS, deviceLabel } from "@/lib/devices";
+import { DEVICES, DEVICE_MATRIX_PRESETS, deviceInfo, deviceLabel } from "@/lib/devices";
+import { DeviceScreen } from "@/components/device-screen";
 import {
   ArrowLeft,
   Play,
@@ -136,6 +137,7 @@ function TestDetail() {
     >
   >({});
   const [matrixBusy, setMatrixBusy] = useState(false);
+  const [matrixWatched, setMatrixWatched] = useState(false); // was Watch on for the last batch?
   const [browser, setBrowser] = useState("chromium");
   const [jiraBusy, setJiraBusy] = useState<string | null>(null); // runId currently being filed
   // Data-Driven Testing: the user's datasets (for the attach dropdown) + per-row run results.
@@ -679,6 +681,8 @@ function TestDetail() {
 
   // Run the selected device × browser presets, up to 3 at a time (the per-user run cap).
   const runMatrix = async () => {
+    const watchMatrix = watch; // capture: toggling Watch mid-run doesn't change this batch
+    setMatrixWatched(watchMatrix);
     const picks = [...matrixSel].sort((a, b) => a - b);
     if (!picks.length) return toast.error("Pick at least one device.");
     setMatrixBusy(true);
@@ -690,10 +694,12 @@ function TestDetail() {
         const patch = (u: Partial<(typeof matrixResults)[number]>) =>
           setMatrixResults((r) => ({ ...r, [i]: { ...r[i], ...u } }));
         patch({ status: "running" });
-        // Live screen for this combo (cloud only — locally the ticket says { local: true }).
+        // Live screen for this combo — only when Watch is on (cloud only; locally the ticket
+        // says { local: true } and nothing streams).
         let live: { close: () => void } | null = null;
         let liveId: string | undefined;
         try {
+          if (!watchMatrix) throw new Error("watch off");
           const id = crypto.randomUUID();
           const ticket = await apiCall<any>("/api/protected/live-ticket", { liveId: id });
           if (ticket?.url) {
@@ -1167,8 +1173,11 @@ function TestDetail() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Each runs as its own test run (they appear in Recent runs below), up to 3 at a time.
-            iPhone/iPad use WebKit — Safari's engine; Android uses Chromium — Chrome's engine.
+            Each runs as its own test run (they appear in Run history below), up to 3 at a time.
+            iPhone/iPad use WebKit — Safari's engine; Android uses Chromium — Chrome's engine.{" "}
+            {watch
+              ? "Watch is on — each device's screen appears below, live."
+              : "Turn on Watch (above) to see each device's screen live."}
           </p>
           <div className="grid sm:grid-cols-2 gap-2">
             {DEVICE_MATRIX_PRESETS.map((p, i) => {
@@ -1215,18 +1224,19 @@ function TestDetail() {
               );
             })}
           </div>
-          {Object.keys(matrixResults).length > 0 && (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+          {matrixWatched && Object.keys(matrixResults).length > 0 && (
+            <div className="flex flex-wrap items-start gap-4 pt-2">
               {Object.entries(matrixResults)
                 .sort(([a], [b]) => Number(a) - Number(b))
                 .map(([key, res]) => {
                   const p = DEVICE_MATRIX_PRESETS[Number(key)];
+                  const dev = deviceInfo(p.device)!;
                   return (
                     <div
                       key={key}
-                      className="rounded-lg border border-border bg-card overflow-hidden"
+                      className="rounded-lg border border-border bg-card p-3 space-y-2 max-w-full"
                     >
-                      <div className="px-3 py-2 text-xs border-b border-border flex items-center justify-between gap-2">
+                      <div className="text-xs flex items-center justify-between gap-3">
                         <span className="font-medium truncate">{p.label}</span>
                         <span
                           className={
@@ -1246,22 +1256,22 @@ function TestDetail() {
                           )}
                         </span>
                       </div>
-                      <div className="bg-black/90 h-72 flex items-center justify-center">
-                        {res.frame ? (
-                          <img
-                            src={`data:image/jpeg;base64,${res.frame}`}
-                            alt={`${p.label} screen`}
-                            className="max-h-full max-w-full object-contain"
-                          />
-                        ) : (
-                          <span className="text-xs text-white/50">
-                            {res.status === "queued" ? "Waiting for a free slot…" : "Starting…"}
-                          </span>
-                        )}
+                      <div className="flex justify-center overflow-x-auto">
+                        <DeviceScreen
+                          device={p.device}
+                          frame={res.frame}
+                          alt={`${p.label} screen`}
+                          placeholder={
+                            res.status === "queued" ? "Waiting for a free slot…" : "Starting…"
+                          }
+                        />
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {dev.width} × {dev.height} · {dev.kind}
                       </div>
                       {(res.step || res.detail) && (
                         <div
-                          className={`px-3 py-1.5 text-xs truncate ${res.detail ? "text-destructive" : "text-muted-foreground"}`}
+                          className={`text-xs truncate max-w-[24rem] ${res.detail ? "text-destructive" : "text-muted-foreground"}`}
                           title={res.detail || res.step}
                         >
                           {res.detail || res.step}
