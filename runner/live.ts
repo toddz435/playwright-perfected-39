@@ -15,7 +15,7 @@ import { verifyLiveTicket } from "@/lib/live-ticket.server";
 import type { LiveStepInfo } from "@/lib/playwright-runner.server";
 
 type Viewer = { ws: WebSocket; userId: string };
-type Capture = { stop: () => void; poke: () => void };
+export type Capture = { stop: () => void; poke: () => void };
 type Session = { ownerId?: string; viewers: Set<Viewer>; last?: string; capture?: Capture };
 
 // Drop a frame for a viewer whose socket buffer is over this — it's falling behind.
@@ -71,7 +71,11 @@ function closeSession(liveId: string) {
 export function handleLiveUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean {
   const url = new URL(req.url || "/", "http://runner");
   if (url.pathname !== "/live") return false;
-  const ticket = verifyLiveTicket(process.env.RUNNER_SECRET || "", url.searchParams.get("t") || "");
+  const ticket = verifyLiveTicket(
+    process.env.RUNNER_SECRET || "",
+    url.searchParams.get("t") || "",
+    "watch",
+  );
   if (!ticket) {
     socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     socket.destroy();
@@ -88,21 +92,20 @@ export function handleLiveUpgrade(req: IncomingMessage, socket: Duplex, head: Bu
     s.viewers.add(v);
     ws.on("close", () => s.viewers.delete(v));
     ws.on("error", () => s.viewers.delete(v));
-    ws.on("message", () => {}); // view-only for now; input forwarding comes with the recorder
+    ws.on("message", () => {}); // view-only; interactive input is the recorder (runner/record.ts)
     sendTo(v, JSON.stringify({ type: "hello", started: Boolean(s.ownerId) }), false);
     if (s.ownerId && s.last) sendTo(v, s.last, true);
   });
   return true;
 }
 
-async function startCapture(liveId: string, page: Page): Promise<Capture> {
-  const frame = (data: string) => {
-    const msg = JSON.stringify({ type: "frame", data });
-    const s = sessions.get(liveId);
-    if (s) s.last = msg;
-    broadcast(liveId, msg, true);
-  };
-
+// Stream a page's screen as base64 JPEG frames to `frame`, but only while `wanted()` (someone is
+// watching). Shared by live view and the cloud recorder (runner/record.ts).
+export async function startPageCapture(
+  page: Page,
+  frame: (data: string) => void,
+  wanted: () => boolean,
+): Promise<Capture> {
   // Chromium: CDP screencast pushes a frame whenever the page repaints (ack-gated).
   try {
     const cdp = await page.context().newCDPSession(page);
@@ -121,7 +124,7 @@ async function startCapture(liveId: string, page: Page): Promise<Capture> {
     };
     cdp.on("Page.screencastFrame", ({ data, sessionId }) => {
       cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
-      if (!hasViewers(liveId)) return;
+      if (!wanted()) return;
       pending = data;
       const wait = MIN_FRAME_GAP_MS - (Date.now() - lastSent);
       if (wait <= 0) flush();
@@ -148,7 +151,7 @@ async function startCapture(liveId: string, page: Page): Promise<Capture> {
 
   let busy = false;
   const snap = async () => {
-    if (busy || page.isClosed() || !hasViewers(liveId)) return;
+    if (busy || page.isClosed() || !wanted()) return;
     busy = true;
     try {
       const buf = await page.screenshot({ type: "jpeg", quality: 50, timeout: 2000 });
@@ -162,6 +165,19 @@ async function startCapture(liveId: string, page: Page): Promise<Capture> {
   const timer = setInterval(snap, POLL_MS);
   // Also snap at each step boundary, so short runs still show every action.
   return { stop: () => clearInterval(timer), poke: () => void snap() };
+}
+
+function startCapture(liveId: string, page: Page): Promise<Capture> {
+  return startPageCapture(
+    page,
+    (data) => {
+      const msg = JSON.stringify({ type: "frame", data });
+      const s = sessions.get(liveId);
+      if (s) s.last = msg;
+      broadcast(liveId, msg, true);
+    },
+    () => hasViewers(liveId),
+  );
 }
 
 // Hooks for executeTest() when a run carries opts.liveId. Claims the session for `ownerId`

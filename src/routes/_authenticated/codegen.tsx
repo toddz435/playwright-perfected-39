@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, Wand2, Sparkles, Save, CircleDot } from "lucide-react";
 import { locatorLabel } from "@/lib/locator";
+import { useCloudRecorder, CloudRecorderPanel } from "@/components/cloud-recorder";
 
 export const Route = createFileRoute("/_authenticated/codegen")({
   head: () => ({ meta: [{ title: "Codegen — Testrify" }] }),
@@ -46,11 +47,41 @@ function Codegen() {
       });
   }, []);
 
+  // Cloud recorder (production): an interactive browser streamed into this page.
+  const cloud = useCloudRecorder((code, reason) => {
+    if (!code.trim()) {
+      toast.error("Nothing was recorded.");
+      return;
+    }
+    setScript(code);
+    toast.success(
+      reason === "stopped"
+        ? "Recording captured — review the script, then Convert to a resilient test."
+        : `Recording ${reason} — review the script, then Convert to a resilient test.`,
+    );
+  });
+  const cloudBusy =
+    cloud.state != null && ["connecting", "ready", "stopping"].includes(cloud.state.phase);
+
   const record = async () => {
     if (!/^https?:\/\//i.test(recordUrl.trim()))
       return toast.error("Enter a URL starting with http(s)://");
-    setRecording(true);
     setResult(null);
+    // In the cloud, record inside this page; locally the ticket endpoint says { local: true } and
+    // we fall back to a real `playwright codegen` window on this machine.
+    try {
+      const ticket = await apiCall<any>("/api/protected/live-ticket", {
+        liveId: crypto.randomUUID(),
+        kind: "record",
+      });
+      if (ticket?.url) {
+        cloud.start(ticket.url, recordUrl.trim());
+        return;
+      }
+    } catch (e: any) {
+      return toast.error(e.message);
+    }
+    setRecording(true);
     try {
       // Long-running: a real browser window opens on this machine; resolves when closed.
       const r = await apiCall<any>("/api/protected/record-codegen", { url: recordUrl.trim() });
@@ -139,7 +170,7 @@ function Codegen() {
       <header>
         <h1 className="text-3xl font-bold tracking-tight">Resilient Codegen</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Record a flow in a real browser (or paste a Playwright script). Testrify rewrites brittle
+          Record a flow in a browser (or paste a Playwright script). Testrify rewrites brittle
           locators into role/text/label-based ones that survive refactors.
         </p>
       </header>
@@ -155,10 +186,10 @@ function Codegen() {
             onChange={(e) => setRecordUrl(e.target.value)}
             placeholder="https://your-app.com/login"
             className="bg-input/50 font-mono text-sm"
-            onKeyDown={(e) => e.key === "Enter" && !recording && record()}
+            onKeyDown={(e) => e.key === "Enter" && !recording && !cloudBusy && record()}
           />
-          <Button disabled={recording} onClick={record} className="shrink-0">
-            {recording ? (
+          <Button disabled={recording || cloudBusy} onClick={record} className="shrink-0">
+            {recording || cloudBusy ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Recording…
               </>
@@ -169,11 +200,20 @@ function Codegen() {
             )}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {recording
-            ? "Recording… a browser + Playwright Inspector opened on this machine. Click around, then CLOSE the browser window — the captured steps appear here only after you close it."
-            : "Opens a real Chromium window locally. Interact, then close it to bring the steps back here. (Live code shows in Playwright's Inspector meanwhile. Runs on the local server only.)"}
-        </p>
+        {cloud.state ? (
+          <CloudRecorderPanel
+            state={cloud.state}
+            send={cloud.send}
+            onStop={cloud.stop}
+            onClose={cloud.close}
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {recording
+              ? "Recording… a browser + Playwright Inspector opened on this machine. Click around, then CLOSE the browser window — the captured steps appear here only after you close it."
+              : "Opens the page in a cloud browser right here — click and type to record, then Stop. Nothing to install. (On a local server it opens a Chromium window on this machine instead.)"}
+          </p>
+        )}
       </section>
 
       <div className="grid lg:grid-cols-2 gap-4">

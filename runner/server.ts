@@ -9,6 +9,7 @@
 //                body:    { testId: string, opts?: { resumeFromStep?, varsOverride? } }
 //   GET  /health (liveness, no auth)
 //   GET  /live?t=<ticket>  WebSocket live view of a run started with opts.liveId (see runner/live.ts)
+//   GET  /record?t=<ticket> WebSocket interactive cloud recorder (see runner/record.ts)
 //
 // Run with: tsx runner/server.ts   (env: RUNNER_SECRET, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
 //                                    SECRETS_KEY, ANTHROPIC_API_KEY)
@@ -21,6 +22,7 @@ import { quotaBlock } from "@/lib/quota.server";
 import { CLOUD_BROWSER_CHOICES, type BrowserChoice } from "@/lib/playwright-runner.server";
 import { isValidLiveId } from "@/lib/live-ticket.server";
 import { handleLiveUpgrade, liveHooks } from "./live";
+import { handleRecordUpgrade } from "./record";
 
 const PORT = Number(process.env.PORT) || 8080;
 const RUNNER_SECRET = process.env.RUNNER_SECRET || "";
@@ -82,7 +84,11 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     if (userErr || !userData.user) return send(res, 401, { error: "invalid user token" });
     const userId = userData.user.id;
 
-    const { data: test, error: tErr } = await sb.from("tests").select("*").eq("id", testId).single();
+    const { data: test, error: tErr } = await sb
+      .from("tests")
+      .select("*")
+      .eq("id", testId)
+      .single();
     if (tErr || !test) return send(res, 404, { error: "test not found" });
 
     // Monthly run quota (no-op while QUOTA_ENFORCED is off).
@@ -140,7 +146,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 });
 
 server.on("upgrade", (req, socket, head) => {
-  if (!handleLiveUpgrade(req, socket, head)) socket.destroy();
+  if (!handleLiveUpgrade(req, socket, head) && !handleRecordUpgrade(req, socket, head)) {
+    socket.destroy();
+  }
 });
 
 server.listen(PORT, () => console.log(`[runner] listening on :${PORT}`));

@@ -1,8 +1,9 @@
 name: CI
 
 # Runs the same gates we run locally — typecheck + unit tests — on every PR and on
-# pushes to main, so red code can't merge. Unit tests are pure (no browser), so no
-# Playwright browser download is needed here.
+# pushes to main, so red code can't merge. Unit tests are pure except one: the recorder-hook
+# test launches headless Chromium to prove Playwright still exposes the private recorder API
+# the cloud recorder depends on, so CI installs that one browser (headless shell only).
 on:
   push:
     branches: [main]
@@ -24,6 +25,8 @@ jobs:
       # not needed: CI only typechecks and runs pure unit tests; esbuild's binary ships via a
       # platform optional-dep, not a script, so vitest still works).
       - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install headless Chromium (recorder-hook test)
+        run: npx playwright install --only-shell chromium
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Unit tests
