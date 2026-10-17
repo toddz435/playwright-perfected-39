@@ -147,6 +147,15 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
   }
 });
 
+// Last line of defence: a stray rejection (e.g. inside a Playwright route handler) must be
+// logged, not take the whole runner — and every user's in-flight run — down with it.
+process.on("unhandledRejection", (err) => {
+  console.error("[runner] unhandled rejection:", (err as Error)?.stack || err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[runner] uncaught exception:", err?.stack || err);
+});
+
 server.on("upgrade", (req, socket, head) => {
   if (!handleLiveUpgrade(req, socket, head) && !handleRecordUpgrade(req, socket, head)) {
     socket.destroy();

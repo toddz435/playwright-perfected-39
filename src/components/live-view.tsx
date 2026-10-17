@@ -18,6 +18,42 @@ type LiveState = {
 // to nobody).
 const CONNECT_WAIT_MS = 3000;
 
+// Lightweight live connection for showing MANY runs at once (the "Run on devices" grid): calls
+// back with frames/steps/done, and `ready` resolves once connected (or after CONNECT_WAIT_MS).
+export function connectLive(
+  url: string,
+  on: {
+    frame?: (data: string) => void;
+    step?: (s: LiveStep) => void;
+    done?: (status: string) => void;
+  },
+): { ready: Promise<void>; close: () => void } {
+  const ws = new WebSocket(url);
+  ws.onmessage = (ev) => {
+    let msg: { type?: string; data?: string; status?: string } & Partial<LiveStep>;
+    try {
+      msg = JSON.parse(ev.data);
+    } catch {
+      return;
+    }
+    if (msg.type === "frame" && msg.data) on.frame?.(msg.data);
+    else if (msg.type === "step") on.step?.(msg as LiveStep);
+    else if (msg.type === "done") on.done?.(msg.status || "done");
+  };
+  const ready = new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, CONNECT_WAIT_MS);
+    ws.onopen = () => {
+      clearTimeout(t);
+      resolve();
+    };
+    ws.onerror = () => {
+      clearTimeout(t);
+      resolve();
+    };
+  });
+  return { ready, close: () => ws.close() };
+}
+
 export function useLiveView() {
   const [state, setState] = useState<LiveState | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
