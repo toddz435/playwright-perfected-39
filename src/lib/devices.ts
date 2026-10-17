@@ -10,7 +10,10 @@ export type DeviceId =
   | "pixel-7"
   | "galaxy-s9"
   | "ipad-pro-11"
-  | "ipad-mini";
+  | "ipad-pro-11-landscape"
+  | "ipad-mini"
+  | "ipad-mini-landscape"
+  | "galaxy-tab-s4";
 
 export type DeviceInfo = {
   id: DeviceId;
@@ -20,62 +23,59 @@ export type DeviceInfo = {
   kind: "desktop" | "phone" | "tablet";
   // The engine that matches the real device's browser (Safari → WebKit, Chrome → Chromium).
   nativeBrowser: "chromium" | "webkit";
+  // CSS-pixel viewport (mirrors the Playwright descriptor) — used to draw each device's screen at
+  // its true shape in the UI. devices.test.ts keeps these in sync with Playwright.
+  width: number;
+  height: number;
 };
 
+const d = (
+  id: DeviceId,
+  label: string,
+  playwright: string | null,
+  kind: DeviceInfo["kind"],
+  nativeBrowser: DeviceInfo["nativeBrowser"],
+  width: number,
+  height: number,
+): DeviceInfo => ({ id, label, playwright, kind, nativeBrowser, width, height });
+
 export const DEVICES: DeviceInfo[] = [
-  { id: "desktop", label: "Desktop", playwright: null, kind: "desktop", nativeBrowser: "chromium" },
-  {
-    id: "iphone-15",
-    label: "iPhone 15",
-    playwright: "iPhone 15",
-    kind: "phone",
-    nativeBrowser: "webkit",
-  },
-  {
-    id: "iphone-se",
-    label: "iPhone SE (small)",
-    playwright: "iPhone SE",
-    kind: "phone",
-    nativeBrowser: "webkit",
-  },
-  {
-    id: "pixel-7",
-    label: "Pixel 7",
-    playwright: "Pixel 7",
-    kind: "phone",
-    nativeBrowser: "chromium",
-  },
-  {
-    id: "galaxy-s9",
-    label: "Galaxy S9+",
-    playwright: "Galaxy S9+",
-    kind: "phone",
-    nativeBrowser: "chromium",
-  },
-  {
-    id: "ipad-pro-11",
-    label: "iPad Pro 11",
-    playwright: "iPad Pro 11",
-    kind: "tablet",
-    nativeBrowser: "webkit",
-  },
-  {
-    id: "ipad-mini",
-    label: "iPad Mini",
-    playwright: "iPad Mini",
-    kind: "tablet",
-    nativeBrowser: "webkit",
-  },
+  d("desktop", "Desktop", null, "desktop", "chromium", 1280, 720),
+  d("iphone-15", "iPhone 15", "iPhone 15", "phone", "webkit", 393, 659),
+  d("iphone-se", "iPhone SE (small)", "iPhone SE", "phone", "webkit", 320, 568),
+  d("pixel-7", "Pixel 7", "Pixel 7", "phone", "chromium", 412, 839),
+  d("galaxy-s9", "Galaxy S9+", "Galaxy S9+", "phone", "chromium", 320, 658),
+  d("ipad-pro-11", "iPad Pro 11", "iPad Pro 11", "tablet", "webkit", 834, 1194),
+  d(
+    "ipad-pro-11-landscape",
+    "iPad Pro 11 (landscape)",
+    "iPad Pro 11 landscape",
+    "tablet",
+    "webkit",
+    1194,
+    834,
+  ),
+  d("ipad-mini", "iPad Mini", "iPad Mini", "tablet", "webkit", 768, 1024),
+  d(
+    "ipad-mini-landscape",
+    "iPad Mini (landscape)",
+    "iPad Mini landscape",
+    "tablet",
+    "webkit",
+    1024,
+    768,
+  ),
+  d("galaxy-tab-s4", "Galaxy Tab S4", "Galaxy Tab S4", "tablet", "chromium", 712, 1138),
 ];
 
 export function deviceInfo(id: unknown): DeviceInfo | undefined {
-  return DEVICES.find((d) => d.id === id);
+  return DEVICES.find((x) => x.id === id);
 }
 
 // Validate an untrusted device id; anything unknown (or desktop) → undefined = desktop.
 export function cleanDeviceId(id: unknown): DeviceId | undefined {
-  const d = deviceInfo(id);
-  return d && d.id !== "desktop" ? d.id : undefined;
+  const info = deviceInfo(id);
+  return info && info.id !== "desktop" ? info.id : undefined;
 }
 
 // Validate an untrusted per-run choice, keeping an explicit "desktop" (it overrides a test's saved
@@ -98,4 +98,10 @@ export const DEVICE_MATRIX_PRESETS: { device: DeviceId; browser: string; label: 
   { device: "pixel-7", browser: "chromium", label: "Pixel 7 · Chrome (Chromium)" },
   { device: "galaxy-s9", browser: "chromium", label: "Galaxy S9+ · Chrome (Chromium)" },
   { device: "ipad-pro-11", browser: "webkit", label: "iPad Pro 11 · Safari (WebKit)" },
+  {
+    device: "ipad-pro-11-landscape",
+    browser: "webkit",
+    label: "iPad Pro 11 landscape · Safari (WebKit)",
+  },
+  { device: "galaxy-tab-s4", browser: "chromium", label: "Galaxy Tab S4 · Chrome (Chromium)" },
 ];
