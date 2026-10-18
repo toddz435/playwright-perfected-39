@@ -180,7 +180,13 @@ async function runSession(ws: WebSocket, userId: string) {
     if (typeof rawUrl !== "string") throw new Error("A http(s) URL is required");
     await assertPublicUrl(rawUrl, ALLOW_PRIVATE_HOSTS);
     const { chromium } = await import("@playwright/test");
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      // Network-level SSRF guard: all traffic through the vetting egress proxy.
+      ...(ALLOW_PRIVATE_HOSTS
+        ? {}
+        : await (await import("@/lib/egress-proxy.server")).egressLaunchOptions("chromium")),
+    });
     // Device emulation (phone/tablet) — the recorder always uses Chromium, where every
     // descriptor (incl. isMobile) is supported.
     const deviceOpts = await deviceContextOptions(cleanDeviceId(rawDevice), "chromium");
