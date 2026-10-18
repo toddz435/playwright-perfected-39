@@ -212,6 +212,9 @@ const BEFORE_CLOSE_MAX_MS = 2000;
 
 export type LiveStepInfo = { idx: number; total: number; action: string; target?: string };
 
+// After goto's domcontentloaded, how long to wait (best-effort) for the full load event.
+const GOTO_SETTLE_MS = 5000;
+
 export const DEFAULT_RUN_BUDGET_MS = 5 * 60 * 1000;
 
 // Errors thrown by step executors. Only LocatorError is considered "healable" — a real
@@ -238,7 +241,14 @@ const WATCH_LINGER_MS = 3500;
 // headless runs use 0 so they stay fast. chrome/msedge use the real branded browser via channel.
 async function launchBrowser(choice: BrowserChoice, headless: boolean) {
   const { chromium, firefox, webkit } = await import("@playwright/test");
-  const base = { headless, slowMo: headless ? 0 : 500 };
+  // Cloud: every byte goes through the egress proxy (network-level SSRF guard, all engines).
+  // Dynamic import keeps node:net/http out of the Worker bundle graph (this module is shared).
+  const egress = ALLOW_PRIVATE_HOSTS
+    ? {}
+    : await (
+        await import("@/lib/egress-proxy.server")
+      ).egressLaunchOptions(choice === "chrome" || choice === "msedge" ? "chromium" : choice);
+  const base = { headless, slowMo: headless ? 0 : 500, ...egress };
   switch (choice) {
     case "firefox":
       return firefox.launch(base);
@@ -648,6 +658,11 @@ export async function runBrowserSteps(
           // {{var}}-interpolated here, so runtime-injected URLs are checked too.
           await assertPublicUrl(s.target ?? "", ALLOW_PRIVATE_HOSTS);
           await page.goto(s.target ?? "", { waitUntil: "domcontentloaded", timeout: gotoTimeout });
+          // Then let the page finish loading (capped), as a user would before interacting.
+          // Firefox doesn't cancel the old page's in-flight subresources on navigation, so acting
+          // mid-load lets their stale Set-Cookie responses overwrite a fresh session cookie (e.g.
+          // a login form POST → 303 lands back on /login). Never fails the step.
+          await page.waitForLoadState("load", { timeout: GOTO_SETTLE_MS }).catch(() => {});
           rec({
             idx: i,
             status: "passed",

@@ -55,8 +55,19 @@ async function readJson(req: IncomingMessage): Promise<any> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
+// On Railway, legitimate traffic always arrives through Railway's edge — never from inside the
+// container. A request from loopback can only be a test browser that a page redirected/linked to
+// http://127.0.0.1 or http://localhost: WebKit and Firefox (on Linux) send loopback past the egress
+// proxy, so refuse it here and nothing in the container is reachable that way.
+const REJECT_LOOPBACK = Boolean(process.env.RAILWAY_ENVIRONMENT);
+function fromLoopback(req: IncomingMessage): boolean {
+  const a = req.socket.remoteAddress || "";
+  return a === "::1" || a.startsWith("127.") || a.startsWith("::ffff:127.");
+}
+
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
   try {
+    if (REJECT_LOOPBACK && fromLoopback(req)) return send(res, 403, { error: "forbidden" });
     if (req.method === "GET" && req.url === "/health") return send(res, 200, { ok: true });
     if (req.method !== "POST" || req.url !== "/run") return send(res, 404, { error: "not found" });
 
@@ -157,6 +168,10 @@ process.on("uncaughtException", (err) => {
 });
 
 server.on("upgrade", (req, socket, head) => {
+  if (REJECT_LOOPBACK && fromLoopback(req)) {
+    socket.destroy();
+    return;
+  }
   if (!handleLiveUpgrade(req, socket, head) && !handleRecordUpgrade(req, socket, head)) {
     socket.destroy();
   }
